@@ -24,22 +24,16 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Fix BouncyCastle & Build APK
+      - name: Upgrade AGP and Build APK
         run: |
-          gradle wrapper --gradle-version 8.2 --distribution-type bin
+          # AGP 8.3.2 এ আপডেট করা (যা জাভা ২১ ক্লাস হ্যান্ডেল করতে পারে)
+          sed -i 's/com.android.application" version ".*"/com.android.application" version "8.3.2"/' build.gradle.kts || true
+          sed -i 's/com.android.library" version ".*"/com.android.library" version "8.3.2"/' build.gradle.kts || true
+          sed -i 's/com.android.tools.build:gradle:.*"/com.android.tools.build:gradle:8.3.2"/' build.gradle.kts || true
+
+          gradle wrapper --gradle-version 8.4 --distribution-type bin
           chmod +x gradlew
 
-          # Download stable Java 17 compatible JAR
-          mkdir -p fix_jar
-          curl -sL https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk18on/1.78.1/bcprov-jdk18on-1.78.1.jar -o fix_jar/bcprov-fixed.jar
-
-          # Fetch dependencies first
-          ./gradlew dependencies || true
-
-          # Replace all broken 1.79 JARs with 1.78.1 in Gradle cache
-          find /home/runner/.gradle/caches/ -name "*bcprov-jdk18on-1.79.jar*" -exec cp fix_jar/bcprov-fixed.jar {} \; 2>/dev/null || true
-
-          # Build APK
           ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
 
       - name: Upload APK
