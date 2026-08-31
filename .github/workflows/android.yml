@@ -24,13 +24,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Configure and Build APK
+      - name: Build APK
         run: |
-          gradle wrapper --gradle-version 8.5 --distribution-type bin
+          gradle wrapper --gradle-version 8.4 --distribution-type bin
           chmod +x gradlew
           echo "android.overrideVersionCheck=true" >> gradle.properties
           echo "android.overridePathCheck=true" >> gradle.properties
-          ./gradlew assembleDebug -Pandroid.overrideVersionCheck=true -x lint -x test --no-daemon --stacktrace
+          ./gradlew assembleDebug -Pandroid.overrideVersionCheck=true -Pandroid.overridePathCheck=true -x lint -x test --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
