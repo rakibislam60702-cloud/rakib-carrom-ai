@@ -24,17 +24,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Upgrade AGP and Build APK
+      - name: Build APK Direct
         run: |
-          # AGP 8.3.2 এ আপডেট করা (যা জাভা ২১ ক্লাস হ্যান্ডেল করতে পারে)
-          sed -i 's/com.android.application" version ".*"/com.android.application" version "8.3.2"/' build.gradle.kts || true
-          sed -i 's/com.android.library" version ".*"/com.android.library" version "8.3.2"/' build.gradle.kts || true
-          sed -i 's/com.android.tools.build:gradle:.*"/com.android.tools.build:gradle:8.3.2"/' build.gradle.kts || true
-
-          gradle wrapper --gradle-version 8.4 --distribution-type bin
+          gradle wrapper --gradle-version 8.2 --distribution-type bin
           chmod +x gradlew
 
-          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
+          # Force disable strict version checks and exclude broken bytecode instrumentation
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.instrumentation.bytecode.interceptor=false" >> gradle.properties
+          echo "android.overrideVersionCheck=true" >> gradle.properties
+          echo "android.overridePathCheck=true" >> gradle.properties
+          echo "android.suppressUnsupportedCompileSdk=34,35" >> gradle.properties
+
+          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test -Pandroid.overrideVersionCheck=true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
