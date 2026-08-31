@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. Four HUD Aiming Brackets (Neon Cyan) -->
+    <!-- Top-Left -->
+    <path
+        android:pathData="M24,32 L24,24 L32,24"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="square" />
+    <!-- Top-Right -->
+    <path
+        android:pathData="M84,32 L84,24 L76,24"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="square" />
+    <!-- Bottom-Left -->
+    <path
+        android:pathData="M24,76 L24,84 L32,84"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="square" />
+    <!-- Bottom-Right -->
+    <path
+        android:pathData="M84,76 L84,84 L76,84"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="square" />
+
+    <!-- 2. AI Precision Outer Crosshair Laser Rays -->
+    <path
+        android:pathData="M54,12 L54,26 M54,82 L54,96 M12,54 L26,54 M82,54 L96,54"
+        android:strokeWidth="2.4"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round" />
+
+    <!-- Diagonal 3-Cushion Trajectory Beams -->
+    <path
+        android:pathData="M27,27 L36,36 M81,27 L72,36 M27,81 L36,72 M81,81 L72,72"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FFD700"
+        android:strokeLineCap="round" />
+
+    <!-- 3. Outer Laser Target Reticle Ring -->
+    <path
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26 Z"
+        android:strokeWidth="1.8"
+        android:strokeColor="#00E5FF"
+        android:fillColor="#0D00E5FF" />
+
+    <!-- Secondary Calibration Ring -->
+    <path
+        android:pathData="M54,32 A22,22 0 1,0 54,76 A22,22 0 1,0 54,32 Z"
+        android:strokeWidth="1.0"
+        android:strokeColor="#8000E676" />
+
+    <!-- 4. Carrom Queen Disc Body (Beveled Rim & Ruby Core) -->
+    <!-- Gold Queen Outer Rim -->
+    <path
+        android:pathData="M54,36 A18,18 0 1,0 54,72 A18,18 0 1,0 54,36 Z"
+        android:fillColor="#FFD700" />
+
+    <!-- Cyan Inner Accent Rim -->
+    <path
+        android:pathData="M54,38 A16,16 0 1,0 54,70 A16,16 0 1,0 54,38 Z"
+        android:fillColor="#00E5FF" />
+
+    <!-- Carrom Queen Ruby Red Center Core -->
+    <path
+        android:pathData="M54,40 A14,14 0 1,0 54,68 A14,14 0 1,0 54,40 Z"
+        android:fillColor="#D50000" />
+
+    <path
+        android:pathData="M54,43 A11,11 0 1,0 54,65 A11,11 0 1,0 54,43 Z"
+        android:fillColor="#FF1744" />
+
+    <!-- 5. Queen Mandala 8-Point Star Emblem -->
+    <!-- Gold Diamond Star 1 -->
+    <path
+        android:pathData="M54,45 L57,54 L54,63 L51,54 Z"
+        android:fillColor="#FFD700" />
+    <!-- Gold Diamond Star 2 -->
+    <path
+        android:pathData="M45,54 L54,57 L63,54 L54,51 Z"
+        android:fillColor="#FFD700" />
+    <!-- Diagonal Star Points -->
+    <path
+        android:pathData="M48,48 L54,54 L60,60 M60,48 L54,54 L48,60"
+        android:strokeWidth="1.2"
+        android:strokeColor="#FFFFFF" />
+
+    <!-- Center AI Glowing Core Pip (Neon Cyan & White) -->
+    <path
+        android:pathData="M54,51 A3,3 0 1,0 54,57 A3,3 0 1,0 54,51 Z"
+        android:fillColor="#00E5FF" />
+    <path
+        android:pathData="M54,52.5 A1.5,1.5 0 1,0 54,55.5 A1.5,1.5 0 1,0 54,52.5 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 6. Target Crosshair Center Aperture Notches -->
+    <path
+        android:pathData="M54,35 L54,39 M54,69 L54,73 M35,54 L39,54 M69,54 L73,54"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+
+</vector>
+

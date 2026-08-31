@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="start">
+
+    <!-- Draggable Neon-Cyan Circular Floating Bubble -->
+    <ImageButton
+        android:id="@+id/btn_bubble_icon"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
+        android:background="@drawable/bg_neon_bubble"
+        android:src="@drawable/ic_bubble_crosshair"
+        android:contentDescription="Gemini AI Floating Bubble"
+        android:elevation="16dp"
+        android:padding="10dp" />
+
+    <!-- Glassmorphic Quick-Settings Popup (Triggered on Double-Tap or Tap) -->
+    <LinearLayout
+        android:id="@+id/panel_expanded_menu"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_glassmorphic_popup"
+        android:layout_marginTop="8dp"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <!-- Title & Status Header -->
+        <TextView
+            android:id="@+id/tv_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚡ GEMINI 2.5 AIM HUD"
+            android:textColor="#00E5FF"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingBottom="2dp" />
+
+        <TextView
+            android:id="@+id/tv_widget_ai_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AI Status: Active &amp; 3-Cushion Ready"
+            android:textColor="#00E676"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:paddingBottom="6dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#3300E5FF"
+            android:layout_marginBottom="6dp" />
+
+        <!-- 1. Hide / Show Laser Lines Toggle -->
+        <Button
+            android:id="@+id/btn_toggle_lines"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:text="Laser Lines: VISIBLE 🟢"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#00838F"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 2. Auto Pocket Prediction Toggle -->
+        <Button
+            android:id="@+id/btn_toggle_pocket_prediction"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:text="Auto Pocket Lock: ON 🟢"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#F57F17"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 3. 3-Cushion Bank Aim Toggle -->
+        <Button
+            android:id="@+id/btn_toggle_3cushion"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:text="3-Cushion Bank Aim: ON 🟢"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#4527A0"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 4. Anti-Ban Stealth Guard Mode Toggle -->
+        <Button
+            android:id="@+id/btn_toggle_stealth"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:text="🛡️ Stealth Safe Mode: ON 🟢"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#1B5E20"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="6dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#26FFFFFF"
+            android:layout_marginBottom="6dp" />
+
+        <!-- Laser Color Selector Header -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🎨 LASER COLOR SELECTOR"
+            android:textColor="#B0BEC5"
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:paddingBottom="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <!-- Cyan Button -->
+            <Button
+                android:id="@+id/btn_color_cyan"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="32dp"
+                android:text="Cyan"
+                android:textColor="#000000"
+                android:backgroundTint="#00E5FF"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="3dp"
+                android:padding="0dp" />
+
+            <!-- Green Button -->
+            <Button
+                android:id="@+id/btn_color_green"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="32dp"
+                android:text="Green"
+                android:textColor="#000000"
+                android:backgroundTint="#00E676"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="3dp"
+                android:padding="0dp" />
+
+            <!-- Gold Button -->
+            <Button
+                android:id="@+id/btn_color_gold"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="32dp"
+                android:text="Gold"
+                android:textColor="#000000"
+                android:backgroundTint="#FFD700"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="3dp"
+                android:padding="0dp" />
+
+            <!-- Purple Button -->
+            <Button
+                android:id="@+id/btn_color_purple"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="32dp"
+                android:text="Purple"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#D500F9"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:padding="0dp" />
+        </LinearLayout>
+
+        <!-- Laser Thickness Slider -->
+        <TextView
+            android:id="@+id/tv_laser_thickness_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📏 Laser Thickness: 6px"
+            android:textColor="#B0BEC5"
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:paddingBottom="2dp" />
+
+        <SeekBar
+            android:id="@+id/sb_laser_thickness"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="16"
+            android:progress="6"
+            android:progressTint="#00E5FF"
+            android:thumbTint="#00E5FF"
+            android:layout_marginBottom="8dp" />
+
+        <!-- AI Scan Now Trigger -->
+        <Button
+            android:id="@+id/btn_ai_scan"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:text="🧠 Instant AI Vision Scan"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#6200EA"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- Stop Engine Button -->
+        <Button
+            android:id="@+id/btn_close_floating"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:text="🛑 Stop Engine"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#C62828"
+            android:textSize="10.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="💡 Double-tap bubble to toggle HUD popup"
+            android:textColor="#78909C"
+            android:textSize="8.5sp"
+            android:gravity="center"
+            android:paddingTop="4dp" />
+    </LinearLayout>
+
+</LinearLayout>
