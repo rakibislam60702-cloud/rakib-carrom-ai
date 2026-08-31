@@ -26,9 +26,9 @@ jobs:
 
       - name: Generate Wrapper & Build
         run: |
-          gradle wrapper --gradle-version 8.4
+          gradle wrapper --gradle-version 8.7
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace -Pandroid.overrideVersionCheck=true -Pandroid.overridePathCheck=true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
