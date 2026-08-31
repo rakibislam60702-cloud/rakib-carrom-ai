@@ -24,11 +24,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Generate Wrapper & Build APK
+      - name: Build Debug APK
         run: |
-          gradle wrapper --gradle-version 8.4
+          gradle wrapper --gradle-version 8.2 --distribution-type bin
           chmod +x gradlew
-          ./gradlew assembleDebug -x test -x lint --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
