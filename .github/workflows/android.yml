@@ -24,24 +24,22 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Fix Dependencies and Build
+      - name: Fix BouncyCastle & Build APK
         run: |
           gradle wrapper --gradle-version 8.2 --distribution-type bin
           chmod +x gradlew
-          
-          # Fix Java 21 bytecode crash by forcing Java 17 compatible bouncycastle version
-          cat << 'EOF' >> build.gradle.kts
-          allprojects {
-              configurations.all {
-                  resolutionStrategy {
-                      force("org.bouncycastle:bcprov-jdk18on:1.78.1")
-                      force("org.bouncycastle:bcpkix-jdk18on:1.78.1")
-                      force("org.bouncycastle:bcutil-jdk18on:1.78.1")
-                  }
-              }
-          }
-          EOF
 
+          # Download stable Java 17 compatible JAR
+          mkdir -p fix_jar
+          curl -sL https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk18on/1.78.1/bcprov-jdk18on-1.78.1.jar -o fix_jar/bcprov-fixed.jar
+
+          # Fetch dependencies first
+          ./gradlew dependencies || true
+
+          # Replace all broken 1.79 JARs with 1.78.1 in Gradle cache
+          find /home/runner/.gradle/caches/ -name "*bcprov-jdk18on-1.79.jar*" -exec cp fix_jar/bcprov-fixed.jar {} \; 2>/dev/null || true
+
+          # Build APK
           ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
 
       - name: Upload APK
