@@ -12,10 +12,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Android SDK
@@ -24,13 +24,25 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build APK
+      - name: Fix Dependencies and Build
         run: |
-          gradle wrapper --gradle-version 8.4 --distribution-type bin
+          gradle wrapper --gradle-version 8.2 --distribution-type bin
           chmod +x gradlew
-          echo "android.overrideVersionCheck=true" >> gradle.properties
-          echo "android.overridePathCheck=true" >> gradle.properties
-          ./gradlew assembleDebug -Pandroid.overrideVersionCheck=true -Pandroid.overridePathCheck=true -x lint -x test --no-daemon --stacktrace
+          
+          # Fix Java 21 bytecode crash by forcing Java 17 compatible bouncycastle version
+          cat << 'EOF' >> build.gradle.kts
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force("org.bouncycastle:bcprov-jdk18on:1.78.1")
+                      force("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+                      force("org.bouncycastle:bcutil-jdk18on:1.78.1")
+                  }
+              }
+          }
+          EOF
+
+          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
