@@ -24,18 +24,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build APK Direct
+      - name: Patch Multi-Release Jar and Build
         run: |
           gradle wrapper --gradle-version 8.2 --distribution-type bin
           chmod +x gradlew
 
-          # Force disable strict version checks and exclude broken bytecode instrumentation
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.instrumentation.bytecode.interceptor=false" >> gradle.properties
-          echo "android.overrideVersionCheck=true" >> gradle.properties
-          echo "android.overridePathCheck=true" >> gradle.properties
-          echo "android.suppressUnsupportedCompileSdk=34,35" >> gradle.properties
+          # প্রি-ফেচ ডিপেন্ডেন্সি
+          ./gradlew help || true
 
-          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test -Pandroid.overrideVersionCheck=true
+          # সমস্যা সৃষ্টিকারী Java 21 মেটা-ইনফো ফাইল ক্যাশ থেকে সম্পূর্ণ ডিলিট করা
+          find /home/runner/.gradle/caches/ -name "*bcprov-jdk18on-1.79.jar" -exec zip -d {} "META-INF/versions/21/*" \; 2>/dev/null || true
+
+          # বিল্ড সম্পন্ন করা
+          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
