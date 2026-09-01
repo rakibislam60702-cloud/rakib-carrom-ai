@@ -2,7 +2,7 @@ name: Build Rakib AI Aim APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "patch-2", "main" ]
   workflow_dispatch:
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          gradle wrapper --gradle-version 8.0.2 --distribution-type bin
+          gradle wrapper --gradle-version 8.6 --distribution-type bin
           chmod +x gradlew
           echo "android.overrideVersionCheck=true" >> gradle.properties
           echo "android.overridePathCheck=true" >> gradle.properties
