@@ -16,10 +16,10 @@
         android:elevation="16dp"
         android:padding="10dp" />
 
-    <!-- Glassmorphic Quick-Settings Popup (Triggered on Double-Tap or Tap) -->
+    <!-- Glassmorphic Quick-Settings Popup Menu (Expanded on Touch/Double-Tap) -->
     <LinearLayout
         android:id="@+id/panel_expanded_menu"
-        android:layout_width="240dp"
+        android:layout_width="265dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="@drawable/bg_glassmorphic_popup"
@@ -32,9 +32,9 @@
             android:id="@+id/tv_widget_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⚡ GEMINI 2.5 AIM HUD"
+            android:text="⚡ RAKIB AI AIM ENGINE PRO"
             android:textColor="#00E5FF"
-            android:textSize="12.5sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:gravity="center"
             android:paddingBottom="2dp" />
@@ -43,7 +43,7 @@
             android:id="@+id/tv_widget_ai_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="AI Status: Active &amp; 3-Cushion Ready"
+            android:text="Physics: Zero-Miss Ray Engine Active"
             android:textColor="#00E676"
             android:textSize="10sp"
             android:gravity="center"
@@ -55,53 +55,186 @@
             android:background="#3300E5FF"
             android:layout_marginBottom="6dp" />
 
-        <!-- 1. Hide / Show Laser Lines Toggle -->
+        <!-- 0. MULTI-GAME MODE SWITCHER (Disc Pool / Classic Carrom / Freestyle) -->
         <Button
-            android:id="@+id/btn_toggle_lines"
+            android:id="@+id/btn_cycle_game_mode"
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:text="🎮 Mode: ⚪ DISC POOL 🔄"
+            android:textColor="#060B13"
+            android:backgroundTint="#00E5FF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 0.5. STRIKER BASELINE POSITION GUIDE TOGGLE -->
+        <Button
+            android:id="@+id/btn_toggle_baseline_guide"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:text="📏 Striker Baseline Guide: ON 🟢"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#1B5E20"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 1. AUTO-PLAY / AUTO-SHOT ON/OFF TOGGLE -->
+        <Button
+            android:id="@+id/btn_toggle_autoplay"
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:text="🤖 Auto-Play Shot: OFF ⚪"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#37474F"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 2. QUEEN + COVER AUTO-PRIORITY AI -->
+        <Button
+            android:id="@+id/btn_toggle_queen"
             android:layout_width="match_parent"
             android:layout_height="36dp"
-            android:text="Laser Lines: VISIBLE 🟢"
+            android:text="👑 Queen+Cover Priority: ON 🟢"
+            android:textColor="#000000"
+            android:backgroundTint="#FFD700"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 2.5. MULTI-TARGET CYCLE TOGGLE (Easiest / Queen / Combo / Bank) -->
+        <Button
+            android:id="@+id/btn_cycle_target_focus"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:text="🎯 Target Focus: [Easiest Puck] 🔄"
             android:textColor="#FFFFFF"
             android:backgroundTint="#00838F"
             android:textSize="10.5sp"
             android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
-        <!-- 2. Auto Pocket Prediction Toggle -->
+        <!-- 3. LINE MODE SWITCHER (Direct / 3-Cushion Bank / Laser Pro) -->
         <Button
-            android:id="@+id/btn_toggle_pocket_prediction"
+            android:id="@+id/btn_toggle_line_mode"
             android:layout_width="match_parent"
             android:layout_height="36dp"
-            android:text="Auto Pocket Lock: ON 🟢"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#F57F17"
+            android:text="Mode: 🌟 LASER PRO"
+            android:textColor="#000000"
+            android:backgroundTint="#00E5FF"
             android:textSize="10.5sp"
             android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
-        <!-- 3. 3-Cushion Bank Aim Toggle -->
+        <!-- 4. OPPONENT TURN STANDBY / BATTERY SAVER -->
         <Button
-            android:id="@+id/btn_toggle_3cushion"
+            android:id="@+id/btn_toggle_opponent_turn"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:text="⏸️ Opponent Turn (Pause 0% CPU)"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#455A64"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 5. LAUNCH CARROM POOL DIRECT INTENT -->
+        <Button
+            android:id="@+id/btn_launch_carrom"
             android:layout_width="match_parent"
             android:layout_height="36dp"
-            android:text="3-Cushion Bank Aim: ON 🟢"
+            android:text="🎮 Launch Carrom Disc Pool"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#4527A0"
+            android:backgroundTint="#E91E63"
             android:textSize="10.5sp"
             android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
-        <!-- 4. Anti-Ban Stealth Guard Mode Toggle -->
+        <!-- 6. Execute Instant Auto Shot -->
         <Button
-            android:id="@+id/btn_toggle_stealth"
+            android:id="@+id/btn_trigger_auto_shot"
             android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:text="🛡️ Stealth Safe Mode: ON 🟢"
+            android:layout_height="34dp"
+            android:text="⚡ Auto Strike Now (Dynamic Power)"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#1B5E20"
-            android:textSize="10.5sp"
+            android:backgroundTint="#7B1FA2"
+            android:textSize="10sp"
             android:textStyle="bold"
-            android:layout_marginBottom="6dp" />
+            android:layout_marginBottom="4dp" />
+
+        <!-- 7. Line Thickness Adjuster Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_thickness_decrease"
+                android:layout_width="38dp"
+                android:layout_height="32dp"
+                android:text="➖"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#37474F"
+                android:textSize="11sp"
+                android:padding="0dp" />
+
+            <TextView
+                android:id="@+id/tv_line_thickness"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Thickness: 5.5dp"
+                android:textColor="#00E5FF"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <Button
+                android:id="@+id/btn_thickness_increase"
+                android:layout_width="38dp"
+                android:layout_height="32dp"
+                android:text="➕"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#37474F"
+                android:textSize="11sp"
+                android:padding="0dp" />
+        </LinearLayout>
+
+        <!-- 8. Stealth Mode & Overlay Toggles Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_toggle_stealth"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="32dp"
+                android:text="🛡️ Stealth: ON"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#1B5E20"
+                android:textSize="9.5sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="2dp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btn_toggle_lines"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="32dp"
+                android:text="Overlay: ON"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#00838F"
+                android:textSize="9.5sp"
+                android:textStyle="bold"
+                android:padding="0dp" />
+        </LinearLayout>
 
         <View
             android:layout_width="match_parent"
@@ -109,131 +242,142 @@
             android:background="#26FFFFFF"
             android:layout_marginBottom="6dp" />
 
-        <!-- Laser Color Selector Header -->
+        <!-- Quick In-Game HUD Line Style Selector -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🎨 LASER COLOR SELECTOR"
+            android:text="🎨 IN-GAME HUD QUICK LINE STYLE"
             android:textColor="#B0BEC5"
-            android:textSize="9.5sp"
+            android:textSize="9sp"
             android:textStyle="bold"
             android:paddingBottom="4dp" />
+
+        <!-- Top Style Row: RGB Chroma vs Solid Classic -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_style_rgb_chroma"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="30dp"
+                android:text="🌈 RGB Chroma"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#AA00FF"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="2dp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btn_style_solid_classic"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="30dp"
+                android:text="⚪ Solid Classic"
+                android:textColor="#060B13"
+                android:backgroundTint="#ECEFF1"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:padding="0dp" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="4dp">
 
-            <!-- Cyan Button -->
             <Button
-                android:id="@+id/btn_color_cyan"
+                android:id="@+id/btn_style_laser_glow"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="32dp"
-                android:text="Cyan"
+                android:layout_height="28dp"
+                android:text="Laser"
                 android:textColor="#000000"
                 android:backgroundTint="#00E5FF"
-                android:textSize="9sp"
+                android:textSize="8.5sp"
                 android:textStyle="bold"
-                android:layout_marginEnd="3dp"
+                android:layout_marginEnd="2dp"
                 android:padding="0dp" />
 
-            <!-- Green Button -->
             <Button
-                android:id="@+id/btn_color_green"
+                android:id="@+id/btn_style_solid_neon"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
+                android:text="Neon"
+                android:textColor="#000000"
+                android:backgroundTint="#00B0FF"
+                android:textSize="8.5sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="2dp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btn_style_dual_cyber"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="28dp"
+                android:text="Cyber"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#D500F9"
+                android:textSize="8.5sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="2dp"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btn_style_cyber_green"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="28dp"
                 android:text="Green"
                 android:textColor="#000000"
                 android:backgroundTint="#00E676"
-                android:textSize="9sp"
+                android:textSize="8.5sp"
                 android:textStyle="bold"
-                android:layout_marginEnd="3dp"
+                android:layout_marginEnd="2dp"
                 android:padding="0dp" />
 
-            <!-- Gold Button -->
             <Button
-                android:id="@+id/btn_color_gold"
+                android:id="@+id/btn_style_gold_royal"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:text="Gold"
                 android:textColor="#000000"
                 android:backgroundTint="#FFD700"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:layout_marginEnd="3dp"
-                android:padding="0dp" />
-
-            <!-- Purple Button -->
-            <Button
-                android:id="@+id/btn_color_purple"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="32dp"
-                android:text="Purple"
-                android:textColor="#FFFFFF"
-                android:backgroundTint="#D500F9"
-                android:textSize="9sp"
+                android:textSize="8.5sp"
                 android:textStyle="bold"
                 android:padding="0dp" />
         </LinearLayout>
-
-        <!-- Laser Thickness Slider -->
-        <TextView
-            android:id="@+id/tv_laser_thickness_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📏 Laser Thickness: 6px"
-            android:textColor="#B0BEC5"
-            android:textSize="9.5sp"
-            android:textStyle="bold"
-            android:paddingBottom="2dp" />
-
-        <SeekBar
-            android:id="@+id/sb_laser_thickness"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="16"
-            android:progress="6"
-            android:progressTint="#00E5FF"
-            android:thumbTint="#00E5FF"
-            android:layout_marginBottom="8dp" />
-
-        <!-- AI Scan Now Trigger -->
-        <Button
-            android:id="@+id/btn_ai_scan"
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:text="🧠 Instant AI Vision Scan"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#6200EA"
-            android:textSize="10.5sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
 
         <!-- Stop Engine Button -->
         <Button
             android:id="@+id/btn_close_floating"
             android:layout_width="match_parent"
-            android:layout_height="34dp"
-            android:text="🛑 Stop Engine"
+            android:layout_height="30dp"
+            android:text="🛑 Stop Floating Engine"
             android:textColor="#FFFFFF"
             android:backgroundTint="#C62828"
-            android:textSize="10.5sp"
-            android:textStyle="bold" />
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:layout_marginTop="2dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="💡 Double-tap bubble to toggle HUD popup"
+            android:text="💡 Drag bubble to move • Single/Double-Tap to toggle HUD"
             android:textColor="#78909C"
             android:textSize="8.5sp"
             android:gravity="center"
-            android:paddingTop="4dp" />
+            android:paddingTop="3dp" />
     </LinearLayout>
 
 </LinearLayout>

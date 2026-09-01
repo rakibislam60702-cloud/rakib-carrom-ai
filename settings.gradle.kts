@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Rakib AI Aim Pro"
+rootProject.name = "Rakib AI ultra"
 
 include(":app")

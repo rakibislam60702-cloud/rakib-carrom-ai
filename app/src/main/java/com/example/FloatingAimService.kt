@@ -1,5 +1,6 @@
 package com.example
 
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,99 +10,134 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.provider.Settings
 import android.view.GestureDetector
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.OvershootInterpolator
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
+/**
+ * FloatingAimService runs as a foreground service rendering:
+ * 1. Interactive 120 FPS overlay with Queen + Cover AI & Dynamic Power Gauge
+ * 2. Draggable floating control bubble with single-tap/double-tap gesture detection
+ * 3. Expanded Quick Settings HUD supporting In-Game HUD Line Style Customizer
+ * 4. Opponent Turn standby / battery saver optimization (0% idle CPU)
+ * 5. Automated anti-ban humanized gesture dispatch via Accessibility API
+ */
 class FloatingAimService : Service() {
 
-    private lateinit var windowManager: WindowManager
-    private var floatingBubbleView: View? = null
-    private var aimOverlayCanvasView: AimOverlayView? = null
+    companion object {
+        const val CHANNEL_ID = "RakibAiAimServiceChannel"
+        const val NOTIFICATION_ID = 1001
+        const val CARROM_PACKAGE_NAME = "com.miniclip.carrom"
 
-    private var bubbleLayoutParams: WindowManager.LayoutParams? = null
+        val isServiceRunning = MutableStateFlow(false)
+    }
+
+    private lateinit var windowManager: WindowManager
+    private var aimOverlayCanvasView: AimOverlayView? = null
+    private var floatingBubbleView: View? = null
+
     private var overlayLayoutParams: WindowManager.LayoutParams? = null
+    private var bubbleLayoutParams: WindowManager.LayoutParams? = null
 
     private var isPopupExpanded = false
-    private var isAiAutoScanActive = true
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
-    private var autoScanJob: Job? = null
-
+    private var isAutoPlayActive = false
+    private var isQueenPriorityActive = true
+    private var isOpponentTurnActive = false
     private var currentConfig = AimEngineConfig(
         isEnabled = true,
-        isDualReboundEnabled = true,
-        isAutoPocketPredictionEnabled = true,
-        laserColor = Color.parseColor("#00E5FF"),
-        strokeWidth = 6f,
-        showAngleHud = true
+        lineMode = LineRenderMode.LASER_PRO,
+        lineStyle = AimLineStyle.LASER_GLOW,
+        isAutoPlayEnabled = false,
+        isQueenPriorityEnabled = true,
+        isStealthMode = true,
+        is120FpsEnabled = true,
+        isPerformanceSavingActive = true
     )
 
-    companion object {
-        val isServiceRunning = kotlinx.coroutines.flow.MutableStateFlow(false)
-    }
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var autoPlayJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        isServiceRunning.value = true
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         startForegroundServiceNotification()
-        createAimOverlayView()
+
+        createAimOverlayCanvas()
         createFloatingControlBubble()
-        startAiAutoScanLoop()
+        startAutoPlayWatcherLoop()
+
+        isServiceRunning.value = true
     }
 
     private fun startForegroundServiceNotification() {
-        val channelId = "floating_aim_service_channel"
-        val channelName = "Carrom AI Aim Assist"
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val chan = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
-            chan.lightColor = Color.CYAN
-            chan.lockscreenVisibility = Notification.VISIBILITY_SECRET
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(chan)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Rakib AI ultra Floating Engine",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Zero-Miss AI Laser Aim Line & Auto-Play Overlay active"
+                enableLights(false)
+                enableVibration(false)
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.createNotificationChannel(channel)
         }
 
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java),
+            launchIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Carrom AI Aim Engine Active 🎯")
-            .setContentText("Gemini 2.5 Flash Vision & Neon Floating Bubble running.")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("⚡ Rakib AI ultra Engine Active")
+            .setContentText("Zero-Miss AI Trajectory & Queen+Cover Matrix Running")
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        startForeground(1001, notification)
+        startForeground(NOTIFICATION_ID, notification)
     }
 
-    private fun createAimOverlayView() {
+    private fun createAimOverlayCanvas() {
         aimOverlayCanvasView = AimOverlayView(this).apply {
             config = currentConfig
+            isInteractiveHandlesVisible = true
         }
 
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -169,48 +205,158 @@ class FloatingAimService : Service() {
         }
     }
 
+    private val idleHandler = Handler(Looper.getMainLooper())
+    private var isBubbleDimmed = false
+    private var snapAnimator: ValueAnimator? = null
+
+    private fun performTactileHaptic(view: View? = null, isHeavy: Boolean = false) {
+        try {
+            if (view != null) {
+                val feedback = if (isHeavy) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.VIRTUAL_KEY
+                view.performHapticFeedback(feedback)
+            }
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val duration = if (isHeavy) 45L else 22L
+                    val amplitude = if (isHeavy) VibrationEffect.DEFAULT_AMPLITUDE else 160
+                    vibrator.vibrate(VibrationEffect.createOneShot(duration, amplitude))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(if (isHeavy) 45L else 22L)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun resetIdleDimTimer(view: View) {
+        if (isBubbleDimmed) {
+            view.animate().alpha(1.0f).setDuration(220).start()
+            isBubbleDimmed = false
+        }
+        idleHandler.removeCallbacksAndMessages(null)
+        idleHandler.postDelayed({
+            if (!isPopupExpanded && floatingBubbleView != null) {
+                view.animate().alpha(0.40f).setDuration(400).start()
+                isBubbleDimmed = true
+            }
+        }, 3000L)
+    }
+
     private fun setupBubbleControls(view: View) {
         val bubbleIcon = view.findViewById<ImageButton>(R.id.btn_bubble_icon)
         val popupPanel = view.findViewById<LinearLayout>(R.id.panel_expanded_menu)
-        val btnToggleLines = view.findViewById<Button>(R.id.btn_toggle_lines)
-        val btnTogglePocket = view.findViewById<Button>(R.id.btn_toggle_pocket_prediction)
-        val btnToggle3Cushion = view.findViewById<Button>(R.id.btn_toggle_3cushion)
+        val btnCycleGameMode = view.findViewById<Button>(R.id.btn_cycle_game_mode)
+        val btnToggleBaselineGuide = view.findViewById<Button>(R.id.btn_toggle_baseline_guide)
+        val btnToggleAutoPlay = view.findViewById<Button>(R.id.btn_toggle_autoplay)
+        val btnToggleQueen = view.findViewById<Button>(R.id.btn_toggle_queen)
+        val btnCycleTargetFocus = view.findViewById<Button>(R.id.btn_cycle_target_focus)
+        val btnToggleLineMode = view.findViewById<Button>(R.id.btn_toggle_line_mode)
+        val btnToggleOpponentTurn = view.findViewById<Button>(R.id.btn_toggle_opponent_turn)
+        val btnLaunchCarrom = view.findViewById<Button>(R.id.btn_launch_carrom)
+        val btnTriggerAutoShot = view.findViewById<Button>(R.id.btn_trigger_auto_shot)
         val btnToggleStealth = view.findViewById<Button>(R.id.btn_toggle_stealth)
-        val btnColorCyan = view.findViewById<Button>(R.id.btn_color_cyan)
-        val btnColorGreen = view.findViewById<Button>(R.id.btn_color_green)
-        val btnColorGold = view.findViewById<Button>(R.id.btn_color_gold)
-        val btnColorPurple = view.findViewById<Button>(R.id.btn_color_purple)
-        val tvLaserThicknessLabel = view.findViewById<TextView>(R.id.tv_laser_thickness_label)
-        val sbLaserThickness = view.findViewById<SeekBar>(R.id.sb_laser_thickness)
-        val btnAiScan = view.findViewById<Button>(R.id.btn_ai_scan)
+        val btnToggleLines = view.findViewById<Button>(R.id.btn_toggle_lines)
+
+        val btnThicknessDec = view.findViewById<Button>(R.id.btn_thickness_decrease)
+        val btnThicknessInc = view.findViewById<Button>(R.id.btn_thickness_increase)
+        val tvLineThickness = view.findViewById<TextView>(R.id.tv_line_thickness)
+
+        val btnStyleRgbChroma = view.findViewById<Button>(R.id.btn_style_rgb_chroma)
+        val btnStyleSolidClassic = view.findViewById<Button>(R.id.btn_style_solid_classic)
+        val btnStyleLaser = view.findViewById<Button>(R.id.btn_style_laser_glow)
+        val btnStyleNeon = view.findViewById<Button>(R.id.btn_style_solid_neon)
+        val btnStyleCyber = view.findViewById<Button>(R.id.btn_style_dual_cyber)
+        val btnStyleGreen = view.findViewById<Button>(R.id.btn_style_cyber_green)
+        val btnStyleGold = view.findViewById<Button>(R.id.btn_style_gold_royal)
+
         val btnClose = view.findViewById<Button>(R.id.btn_close_floating)
         val tvAiStatus = view.findViewById<TextView>(R.id.tv_widget_ai_status)
 
-        // Helper to toggle popup
-        fun togglePopup() {
-            isPopupExpanded = !isPopupExpanded
-            popupPanel.visibility = if (isPopupExpanded) View.VISIBLE else View.GONE
+        // Continuous Live Cloud AI Matrix & Telemetry Sync Observer
+        serviceScope.launch {
+            CloudAiConnectionManager.connectionState.collect { cloudState ->
+                withContext(Dispatchers.Main) {
+                    tvAiStatus.text = "${cloudState.livePingBadge}\n${currentConfig.gameMode.badge} • ${currentConfig.lineStyle.label}"
+                }
+            }
         }
 
-        // GestureDetector for Double-Tap & Single-Tap Detection on Neon-Cyan Bubble
-        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                togglePopup()
-                Toast.makeText(
-                    this@FloatingAimService,
-                    if (isPopupExpanded) "⚡ AI Quick Settings Opened" else "HUD Popup Closed",
-                    Toast.LENGTH_SHORT
-                ).show()
-                return true
-            }
+        // Initialize smart idle dimming (3s timer)
+        resetIdleDimTimer(view)
 
+        fun togglePopup() {
+            performTactileHaptic(bubbleIcon, false)
+            isPopupExpanded = !isPopupExpanded
+            popupPanel.visibility = if (isPopupExpanded) View.VISIBLE else View.GONE
+            resetIdleDimTimer(view)
+        }
+
+        fun toggleQuickHideOverlay() {
+            performTactileHaptic(bubbleIcon, true)
+            val newEnabled = !currentConfig.isEnabled
+            currentConfig = currentConfig.copy(isEnabled = newEnabled)
+            aimOverlayCanvasView?.config = currentConfig
+            aimOverlayCanvasView?.visibility = if (newEnabled) View.VISIBLE else View.GONE
+            btnToggleLines.text = if (newEnabled) "Overlay: ON" else "Overlay: OFF"
+            btnToggleLines.setBackgroundColor(if (newEnabled) Color.parseColor("#00838F") else Color.parseColor("#455A64"))
+            Toast.makeText(
+                this,
+                if (newEnabled) "✨ Overlay Visible (120 FPS)" else "🛡️ Quick-Hide / Stealth Mode (Overlay Hidden)",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 togglePopup()
                 return true
             }
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                toggleQuickHideOverlay()
+                return true
+            }
         })
 
-        // Dragging & Gesture Touch Handler
+        fun snapBubbleToEdge(currentX: Int) {
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val bubbleWidth = bubbleIcon.width.takeIf { it > 0 } ?: (58 * displayMetrics.density).toInt()
+            val leftTarget = (12 * displayMetrics.density).toInt()
+            val rightTarget = screenWidth - bubbleWidth - (12 * displayMetrics.density).toInt()
+            val targetX = if (currentX + bubbleWidth / 2 < screenWidth / 2) leftTarget else rightTarget
+
+            snapAnimator?.cancel()
+            snapAnimator = ValueAnimator.ofInt(currentX, targetX).apply {
+                duration = 320
+                interpolator = OvershootInterpolator(1.1f)
+                addUpdateListener { animator ->
+                    val animatedX = animator.animatedValue as Int
+                    bubbleLayoutParams?.x = animatedX
+                    bubbleLayoutParams?.let {
+                        if (floatingBubbleView != null) {
+                            try {
+                                windowManager.updateViewLayout(floatingBubbleView, it)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                }
+                start()
+            }
+        }
+
         bubbleIcon.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
@@ -219,11 +365,12 @@ class FloatingAimService : Service() {
             private var isDragging = false
 
             override fun onTouch(v: View?, event: MotionEvent): Boolean {
-                // Pass event to GestureDetector first for tap & double-tap
+                resetIdleDimTimer(view)
                 gestureDetector.onTouchEvent(event)
 
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
+                        snapAnimator?.cancel()
                         initialX = bubbleLayoutParams?.x ?: 0
                         initialY = bubbleLayoutParams?.y ?: 0
                         initialTouchX = event.rawX
@@ -238,11 +385,22 @@ class FloatingAimService : Service() {
                             isDragging = true
                             bubbleLayoutParams?.x = initialX + dx
                             bubbleLayoutParams?.y = initialY + dy
-                            bubbleLayoutParams?.let { windowManager.updateViewLayout(floatingBubbleView, it) }
+                            bubbleLayoutParams?.let {
+                                try {
+                                    windowManager.updateViewLayout(floatingBubbleView, it)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
                         }
                         return true
                     }
-                    MotionEvent.ACTION_UP -> {
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (isDragging) {
+                            val currX = bubbleLayoutParams?.x ?: 0
+                            snapBubbleToEdge(currX)
+                            performTactileHaptic(bubbleIcon, false)
+                        }
                         return true
                     }
                 }
@@ -250,60 +408,285 @@ class FloatingAimService : Service() {
             }
         })
 
-        // 1. Toggle "Hide / Show Laser Lines"
-        btnToggleLines.setOnClickListener {
-            val newEnabled = !currentConfig.isEnabled
-            currentConfig = currentConfig.copy(isEnabled = newEnabled)
+        // =========================================================================
+        // 0. MULTI-GAME MODE SWITCHER (Disc Pool / Classic Carrom / Freestyle)
+        // =========================================================================
+        fun updateGameModeButton() {
+            btnCycleGameMode.text = "🎮 Mode: ${currentConfig.gameMode.badge} 🔄"
+            when (currentConfig.gameMode) {
+                GameMode.DISC_POOL -> {
+                    btnCycleGameMode.setBackgroundColor(Color.parseColor("#00E5FF"))
+                    btnCycleGameMode.setTextColor(Color.parseColor("#060B13"))
+                }
+                GameMode.CLASSIC_CARROM -> {
+                    btnCycleGameMode.setBackgroundColor(Color.parseColor("#FFD700"))
+                    btnCycleGameMode.setTextColor(Color.parseColor("#060B13"))
+                }
+                GameMode.FREESTYLE -> {
+                    btnCycleGameMode.setBackgroundColor(Color.parseColor("#E040FB"))
+                    btnCycleGameMode.setTextColor(Color.WHITE)
+                }
+            }
+        }
+        updateGameModeButton()
+
+        btnCycleGameMode.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val allModes = GameMode.values()
+            val nextIndex = (currentConfig.gameMode.ordinal + 1) % allModes.size
+            val nextMode = allModes[nextIndex]
+
+            currentConfig = currentConfig.copy(gameMode = nextMode)
             aimOverlayCanvasView?.config = currentConfig
-            btnToggleLines.text = if (newEnabled) "Laser Lines: VISIBLE 🟢" else "Laser Lines: HIDDEN ⚪"
-            btnToggleLines.setBackgroundColor(if (newEnabled) Color.parseColor("#00838F") else Color.parseColor("#455A64"))
+            updateGameModeButton()
+
+            tvAiStatus.text = "Mode: ${nextMode.label} (${nextMode.description})"
+            Toast.makeText(this, "🎮 Game Mode: ${nextMode.label}\n${nextMode.description}", Toast.LENGTH_SHORT).show()
+        }
+
+        // =========================================================================
+        // 0.5. STRIKER BASELINE POSITION GUIDE TOGGLE
+        // =========================================================================
+        fun updateBaselineGuideButton() {
+            btnToggleBaselineGuide.text = if (currentConfig.showBaselineGuide) "📏 Baseline Guide: ON 🟢" else "📏 Baseline Guide: OFF ⚪"
+            btnToggleBaselineGuide.setBackgroundColor(if (currentConfig.showBaselineGuide) Color.parseColor("#1B5E20") else Color.parseColor("#37474F"))
+            btnToggleBaselineGuide.setTextColor(Color.WHITE)
+        }
+        updateBaselineGuideButton()
+
+        btnToggleBaselineGuide.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val newGuideState = !currentConfig.showBaselineGuide
+            currentConfig = currentConfig.copy(showBaselineGuide = newGuideState)
+            aimOverlayCanvasView?.config = currentConfig
+            updateBaselineGuideButton()
+
             Toast.makeText(
                 this,
-                if (newEnabled) "Laser Lines: VISIBLE" else "Laser Lines: HIDDEN",
+                if (newGuideState) "📏 Baseline Sweet-Spot Alignment Guide ACTIVE" else "Baseline Guide Hidden",
                 Toast.LENGTH_SHORT
             ).show()
         }
 
-        // 2. Toggle "Auto Pocket Prediction"
-        btnTogglePocket.setOnClickListener {
-            val newPocketPred = !currentConfig.isAutoPocketPredictionEnabled
-            currentConfig = currentConfig.copy(isAutoPocketPredictionEnabled = newPocketPred)
+        // =========================================================================
+        // 1. AUTO-PLAY / AUTO-SHOT TOGGLE
+        // =========================================================================
+        btnToggleAutoPlay.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val isAccessibilityGranted = CarromAutoPlayService.isAccessibilitySettingsOn(this)
+            if (!isAccessibilityGranted) {
+                Toast.makeText(
+                    this,
+                    "⚠️ Please enable 'Rakib AI Aim' in Accessibility Settings first.",
+                    Toast.LENGTH_LONG
+                ).show()
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                return@setOnClickListener
+            }
+
+            isAutoPlayActive = !isAutoPlayActive
+            currentConfig = currentConfig.copy(isAutoPlayEnabled = isAutoPlayActive)
             aimOverlayCanvasView?.config = currentConfig
-            btnTogglePocket.text = if (newPocketPred) "Auto Pocket Lock: ON 🟢" else "Auto Pocket Lock: OFF ⚪"
-            btnTogglePocket.setBackgroundColor(if (newPocketPred) Color.parseColor("#F57F17") else Color.parseColor("#455A64"))
+            aimOverlayCanvasView?.isAutoPlayActive = isAutoPlayActive
+            aimOverlayCanvasView?.wakeRenderingEngine()
+            CarromAutoPlayService.isAutoPlayActive.value = isAutoPlayActive
+
+            btnToggleAutoPlay.text = if (isAutoPlayActive) "🤖 Auto-Play Shot: ON 🟢" else "🤖 Auto-Play Shot: OFF ⚪"
+            btnToggleAutoPlay.setBackgroundColor(if (isAutoPlayActive) Color.parseColor("#00E676") else Color.parseColor("#37474F"))
+            btnToggleAutoPlay.setTextColor(if (isAutoPlayActive) Color.parseColor("#060B13") else Color.WHITE)
+
+            tvAiStatus.text = if (isAutoPlayActive) "Auto-Play: ACTIVE (Dynamic Power & Anti-Ban)" else "Physics: Zero-Miss Ray Engine Active"
+
             Toast.makeText(
                 this,
-                if (newPocketPred) "Target Pocket Lock: ON" else "Target Pocket Lock: OFF",
+                if (isAutoPlayActive) "🤖 Auto-Play Shot Engine ACTIVATED!" else "Auto-Play Shot Paused",
                 Toast.LENGTH_SHORT
             ).show()
         }
 
-        // 3. Toggle "3-Cushion Bank Aim"
-        btnToggle3Cushion.setOnClickListener {
-            val new3Cushion = !currentConfig.is3CushionEnabled
+        // =========================================================================
+        // 2. QUEEN + COVER AUTO-PRIORITY AI
+        // =========================================================================
+        btnToggleQueen.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            isQueenPriorityActive = !isQueenPriorityActive
+            currentConfig = currentConfig.copy(isQueenPriorityEnabled = isQueenPriorityActive)
+            aimOverlayCanvasView?.config = currentConfig
+
+            btnToggleQueen.text = if (isQueenPriorityActive) "👑 Queen+Cover Priority: ON 🟢" else "👑 Queen+Cover Priority: OFF ⚪"
+            btnToggleQueen.setBackgroundColor(if (isQueenPriorityActive) Color.parseColor("#FFD700") else Color.parseColor("#455A64"))
+            btnToggleQueen.setTextColor(if (isQueenPriorityActive) Color.parseColor("#060B13") else Color.WHITE)
+
+            Toast.makeText(
+                this,
+                if (isQueenPriorityActive) "👑 Queen + Cover 2-Shot Strategy Locked!" else "Queen Priority Disabled",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        // =========================================================================
+        // 2.5. MULTI-TARGET CYCLE FOCUS TOGGLE
+        // =========================================================================
+        fun updateTargetFocusButton() {
+            btnCycleTargetFocus.text = "🎯 Focus: ${currentConfig.targetFocusMode.label} 🔄"
+            when (currentConfig.targetFocusMode) {
+                TargetFocusMode.EASIEST_PUCK -> {
+                    btnCycleTargetFocus.setBackgroundColor(Color.parseColor("#00838F"))
+                    btnCycleTargetFocus.setTextColor(Color.WHITE)
+                }
+                TargetFocusMode.QUEEN -> {
+                    btnCycleTargetFocus.setBackgroundColor(Color.parseColor("#FFD700"))
+                    btnCycleTargetFocus.setTextColor(Color.parseColor("#060B13"))
+                }
+                TargetFocusMode.COMBO_3BODY -> {
+                    btnCycleTargetFocus.setBackgroundColor(Color.parseColor("#FF6D00"))
+                    btnCycleTargetFocus.setTextColor(Color.WHITE)
+                }
+                TargetFocusMode.BANK_SHOT -> {
+                    btnCycleTargetFocus.setBackgroundColor(Color.parseColor("#D500F9"))
+                    btnCycleTargetFocus.setTextColor(Color.WHITE)
+                }
+            }
+        }
+        updateTargetFocusButton()
+
+        btnCycleTargetFocus.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val allFocusModes = TargetFocusMode.values()
+            val nextIndex = (currentConfig.targetFocusMode.ordinal + 1) % allFocusModes.size
+            val nextFocusMode = allFocusModes[nextIndex]
+
+            currentConfig = currentConfig.copy(targetFocusMode = nextFocusMode)
+            aimOverlayCanvasView?.config = currentConfig
+            updateTargetFocusButton()
+
+            Toast.makeText(this, "🎯 Target Focus: ${nextFocusMode.label}", Toast.LENGTH_SHORT).show()
+        }
+
+        // =========================================================================
+        // 3. ADVANCED CARROM SHOT & LINE MODE TOGGLE
+        // =========================================================================
+        fun updateLineModeButton() {
+            btnToggleLineMode.text = "Mode: ${currentConfig.lineMode.badge}"
+            when (currentConfig.lineMode) {
+                LineRenderMode.DIRECT -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#37474F"))
+                    btnToggleLineMode.setTextColor(Color.WHITE)
+                }
+                LineRenderMode.BANK_1_CUSHION -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#D50000"))
+                    btnToggleLineMode.setTextColor(Color.WHITE)
+                }
+                LineRenderMode.BANK_2_CUSHION -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#FF6D00"))
+                    btnToggleLineMode.setTextColor(Color.WHITE)
+                }
+                LineRenderMode.BANK_3_CUSHION -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#AA00FF"))
+                    btnToggleLineMode.setTextColor(Color.WHITE)
+                }
+                LineRenderMode.KISS_SHOT -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#FFD600"))
+                    btnToggleLineMode.setTextColor(Color.parseColor("#060B13"))
+                }
+                LineRenderMode.COMBO_3_BODY -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#FF6D00"))
+                    btnToggleLineMode.setTextColor(Color.WHITE)
+                }
+                LineRenderMode.CUT_SHOT -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#00C853"))
+                    btnToggleLineMode.setTextColor(Color.parseColor("#060B13"))
+                }
+                LineRenderMode.BACK_SLICE -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#0091EA"))
+                    btnToggleLineMode.setTextColor(Color.WHITE)
+                }
+                LineRenderMode.BREAK_SHOT -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#FF6D00"))
+                    btnToggleLineMode.setTextColor(Color.parseColor("#060B13"))
+                }
+                LineRenderMode.LASER_PRO -> {
+                    btnToggleLineMode.setBackgroundColor(Color.parseColor("#00E5FF"))
+                    btnToggleLineMode.setTextColor(Color.parseColor("#060B13"))
+                }
+            }
+        }
+        updateLineModeButton()
+
+        btnToggleLineMode.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val allModes = LineRenderMode.values()
+            val nextIndex = (currentConfig.lineMode.ordinal + 1) % allModes.size
+            val nextMode = allModes[nextIndex]
+
             currentConfig = currentConfig.copy(
-                is3CushionEnabled = new3Cushion,
-                isDualReboundEnabled = new3Cushion
+                lineMode = nextMode,
+                is3CushionEnabled = (nextMode == LineRenderMode.BANK_3_CUSHION || nextMode == LineRenderMode.LASER_PRO)
             )
             aimOverlayCanvasView?.config = currentConfig
-            btnToggle3Cushion.text = if (new3Cushion) "3-Cushion Bank Aim: ON 🟢" else "3-Cushion Bank Aim: OFF ⚪"
-            btnToggle3Cushion.setBackgroundColor(if (new3Cushion) Color.parseColor("#4527A0") else Color.parseColor("#455A64"))
+            updateLineModeButton()
+
+            Toast.makeText(this, "Shot Mode: ${nextMode.label}", Toast.LENGTH_SHORT).show()
+        }
+
+        // =========================================================================
+        // 4. OPPONENT TURN STANDBY / BATTERY SAVER (0% CPU)
+        // =========================================================================
+        btnToggleOpponentTurn.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            isOpponentTurnActive = !isOpponentTurnActive
+            aimOverlayCanvasView?.isOpponentTurn = isOpponentTurnActive
+
+            btnToggleOpponentTurn.text = if (isOpponentTurnActive) "▶️ Resume My Turn (120 FPS)" else "⏸️ Opponent Turn (Pause 0% CPU)"
+            btnToggleOpponentTurn.setBackgroundColor(if (isOpponentTurnActive) Color.parseColor("#FF9100") else Color.parseColor("#455A64"))
+
             Toast.makeText(
                 this,
-                if (new3Cushion) "3-Cushion Bank Physics: ACTIVE" else "3-Cushion Bank Physics: OFF",
+                if (isOpponentTurnActive) "⏸️ Paused Overlay for Opponent Turn (Battery Saved)" else "▶️ Resumed 120 FPS Aim Engine!",
                 Toast.LENGTH_SHORT
             ).show()
         }
 
-        // 4. Toggle "Stealth / Safe Mode"
-        btnToggleStealth.text = if (currentConfig.isStealthMode) "🛡️ Stealth Safe Mode: ON 🟢" else "🛡️ Stealth Safe Mode: OFF ⚪"
+        // =========================================================================
+        // 5. LAUNCH CARROM POOL DIRECT INTENT
+        // =========================================================================
+        btnLaunchCarrom.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            launchCarromPoolApp()
+        }
+
+        // =========================================================================
+        // 6. TRIGGER INSTANT AUTO STRIKE (DYNAMIC POWER)
+        // =========================================================================
+        btnTriggerAutoShot.setOnClickListener {
+            performTactileHaptic(it, true)
+            resetIdleDimTimer(view)
+            triggerManualAutoStrike()
+        }
+
+        // =========================================================================
+        // 7. STEALTH MODE & OVERLAY TOGGLES
+        // =========================================================================
+        btnToggleStealth.text = if (currentConfig.isStealthMode) "🛡️ Stealth: ON" else "🛡️ Stealth: OFF"
         btnToggleStealth.setBackgroundColor(if (currentConfig.isStealthMode) Color.parseColor("#1B5E20") else Color.parseColor("#455A64"))
         btnToggleStealth.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
             val newStealth = !currentConfig.isStealthMode
             currentConfig = currentConfig.copy(isStealthMode = newStealth)
             aimOverlayCanvasView?.config = currentConfig
 
-            // Update WindowManager flags dynamically
             overlayLayoutParams?.let { params ->
                 if (newStealth) {
                     params.flags = params.flags or WindowManager.LayoutParams.FLAG_SECURE
@@ -319,94 +702,166 @@ class FloatingAimService : Service() {
                 }
             }
 
-            btnToggleStealth.text = if (newStealth) "🛡️ Stealth Safe Mode: ON 🟢" else "🛡️ Stealth Safe Mode: OFF ⚪"
+            btnToggleStealth.text = if (newStealth) "🛡️ Stealth: ON" else "🛡️ Stealth: OFF"
             btnToggleStealth.setBackgroundColor(if (newStealth) Color.parseColor("#1B5E20") else Color.parseColor("#455A64"))
             Toast.makeText(
                 this,
-                if (newStealth) "🛡️ Stealth Safe Mode: ACTIVE (Screen-Capture Bypassed)" else "🛡️ Stealth Safe Mode: OFF",
+                if (newStealth) "🛡️ Stealth Mode: ON (Screen capture protected)" else "🛡️ Stealth Mode: OFF",
                 Toast.LENGTH_SHORT
             ).show()
         }
 
-        // 4. Laser Color Selectors (Cyan, Green, Gold, Purple)
-        fun setLaserColor(colorHex: String, colorName: String) {
-            val parsedColor = Color.parseColor(colorHex)
-            currentConfig = currentConfig.copy(laserColor = parsedColor)
+        btnToggleLines.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val newEnabled = !currentConfig.isEnabled
+            currentConfig = currentConfig.copy(isEnabled = newEnabled)
             aimOverlayCanvasView?.config = currentConfig
-            Toast.makeText(this, "Laser Color: $colorName", Toast.LENGTH_SHORT).show()
+            btnToggleLines.text = if (newEnabled) "Overlay: ON" else "Overlay: OFF"
+            btnToggleLines.setBackgroundColor(if (newEnabled) Color.parseColor("#00838F") else Color.parseColor("#455A64"))
         }
 
-        btnColorCyan.setOnClickListener { setLaserColor("#00E5FF", "Cyan") }
-        btnColorGreen.setOnClickListener { setLaserColor("#00E676", "Green") }
-        btnColorGold.setOnClickListener { setLaserColor("#FFD700", "Gold") }
-        btnColorPurple.setOnClickListener { setLaserColor("#D500F9", "Purple") }
+        // =========================================================================
+        // 7.5. LINE THICKNESS ADJUSTER
+        // =========================================================================
+        fun updateThicknessDisplay() {
+            tvLineThickness.text = "Thickness: ${String.format(java.util.Locale.US, "%.1f", currentConfig.strokeWidth)}dp"
+        }
+        updateThicknessDisplay()
 
-        // 5. Laser Thickness Slider
-        sbLaserThickness.progress = currentConfig.strokeWidth.toInt().coerceIn(2, 16)
-        tvLaserThicknessLabel.text = "📏 Laser Thickness: ${currentConfig.strokeWidth.toInt()}px"
-        sbLaserThickness.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val clamped = progress.coerceAtLeast(2)
-                tvLaserThicknessLabel.text = "📏 Laser Thickness: ${clamped}px"
-                currentConfig = currentConfig.copy(strokeWidth = clamped.toFloat())
-                aimOverlayCanvasView?.config = currentConfig
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        // Trigger Instant AI Gemini Vision Scan
-        btnAiScan.setOnClickListener {
-            triggerGeminiVisionAnalysis(tvAiStatus)
+        btnThicknessDec.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val newWidth = (currentConfig.strokeWidth - 1.0f).coerceAtLeast(2.0f)
+            currentConfig = currentConfig.copy(strokeWidth = newWidth)
+            aimOverlayCanvasView?.config = currentConfig
+            updateThicknessDisplay()
         }
 
-        // 6. "Stop Engine" Button
+        btnThicknessInc.setOnClickListener {
+            performTactileHaptic(it, false)
+            resetIdleDimTimer(view)
+            val newWidth = (currentConfig.strokeWidth + 1.0f).coerceAtMost(16.0f)
+            currentConfig = currentConfig.copy(strokeWidth = newWidth)
+            aimOverlayCanvasView?.config = currentConfig
+            updateThicknessDisplay()
+        }
+
+        // =========================================================================
+        // 8. IN-GAME HUD QUICK LINE STYLE CUSTOMIZER
+        // =========================================================================
+        fun applyLineStyle(style: AimLineStyle) {
+            performTactileHaptic(null, false)
+            resetIdleDimTimer(view)
+            currentConfig = currentConfig.copy(lineStyle = style)
+            aimOverlayCanvasView?.config = currentConfig
+            Toast.makeText(this, "🎨 Aim Style: ${style.label}", Toast.LENGTH_SHORT).show()
+        }
+
+        btnStyleRgbChroma.setOnClickListener { applyLineStyle(AimLineStyle.RGB_CHROMA) }
+        btnStyleSolidClassic.setOnClickListener { applyLineStyle(AimLineStyle.SOLID_CLASSIC) }
+        btnStyleLaser.setOnClickListener { applyLineStyle(AimLineStyle.LASER_GLOW) }
+        btnStyleNeon.setOnClickListener { applyLineStyle(AimLineStyle.SOLID_NEON) }
+        btnStyleCyber.setOnClickListener { applyLineStyle(AimLineStyle.DUAL_GRADIENT) }
+        btnStyleGreen.setOnClickListener { applyLineStyle(AimLineStyle.CYBER_GREEN) }
+        btnStyleGold.setOnClickListener { applyLineStyle(AimLineStyle.GOLD_CHAMPION) }
+
+        // =========================================================================
+        // 9. CLOSE SERVICE
+        // =========================================================================
         btnClose.setOnClickListener {
-            Toast.makeText(this, "🛑 AI Floating Engine Stopped", Toast.LENGTH_SHORT).show()
+            performTactileHaptic(it, true)
+            Toast.makeText(this, "🛑 Rakib AI Floating Engine Stopped", Toast.LENGTH_SHORT).show()
             stopSelf()
         }
     }
 
-    private fun triggerGeminiVisionAnalysis(statusTextView: TextView?) {
-        statusTextView?.text = "🧠 AI SCANNING TABLE..."
-        Toast.makeText(this, "Gemini 2.5 Flash Vision analyzing board...", Toast.LENGTH_SHORT).show()
+    private fun launchCarromPoolApp() {
+        val pm = packageManager
+        var launchIntent = pm.getLaunchIntentForPackage(CARROM_PACKAGE_NAME)
+        if (launchIntent == null) {
+            try {
+                launchIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$CARROM_PACKAGE_NAME")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(launchIntent)
+                Toast.makeText(this, "Opening Play Store for Carrom Disc Pool...", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$CARROM_PACKAGE_NAME")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(webIntent)
+            }
+        } else {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(launchIntent)
+            Toast.makeText(this, "🎮 Launching Carrom Disc Pool...", Toast.LENGTH_SHORT).show()
+        }
+    }
 
-        serviceScope.launch {
-            val width = aimOverlayCanvasView?.width?.toFloat() ?: 1080f
-            val height = aimOverlayCanvasView?.height?.toFloat() ?: 1920f
+    private fun triggerManualAutoStrike() {
+        val overlay = aimOverlayCanvasView ?: return
+        val w = overlay.width.toFloat().takeIf { it > 0 } ?: 1080f
+        val h = overlay.height.toFloat().takeIf { it > 0 } ?: 1920f
 
-            val result = GeminiVisionAnalyzer.analyzeCarromBoardFrame(
-                bitmap = null,
-                boardWidth = width,
-                boardHeight = height
-            )
+        val trajectory = AimEngine.calculateTrajectory(
+            striker = overlay.strikerPos,
+            coin = overlay.coinPos,
+            boardWidth = w,
+            boardHeight = h,
+            config = currentConfig
+        )
 
-            result.onSuccess { detection ->
-                aimOverlayCanvasView?.applyAiDetectionResult(detection)
-                statusTextView?.text = "🎯 AI Locked: ${detection.targetPocket} (${detection.shotAngleDegrees.toInt()}°)"
+        if (!CarromAutoPlayService.isAccessibilitySettingsOn(this)) {
+            Toast.makeText(this, "⚠️ Enable Accessibility Service in Settings to use Auto Strike.", Toast.LENGTH_LONG).show()
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            return
+        }
+
+        CarromAutoPlayService.executeAutoShot(
+            strikerPos = trajectory.strikerPos,
+            aimTargetPos = trajectory.ghostStrikerPos,
+            powerPercent = trajectory.recommendedPower
+        ) { success ->
+            if (success) {
+                performTactileHaptic(null, true)
                 Toast.makeText(
-                    this@FloatingAimService,
-                    "🎯 AI Locked: ${detection.targetPocket} | Angle: ${detection.shotAngleDegrees.toInt()}° | Power: ${detection.recommendedPowerPercent}%",
-                    Toast.LENGTH_LONG
+                    this,
+                    "⚡ Shot Dispatched (${trajectory.powerLabel} • ${trajectory.lockScorePercent}% Lock)",
+                    Toast.LENGTH_SHORT
                 ).show()
-            }.onFailure {
-                statusTextView?.text = "⚠️ AI Offline (Local Mode)"
             }
         }
     }
 
-    private fun startAiAutoScanLoop() {
-        autoScanJob = serviceScope.launch {
+    private fun startAutoPlayWatcherLoop() {
+        autoPlayJob = serviceScope.launch {
             while (true) {
-                delay(15000)
-                if (isAiAutoScanActive && aimOverlayCanvasView != null) {
-                    val width = aimOverlayCanvasView?.width?.toFloat() ?: 1080f
-                    val height = aimOverlayCanvasView?.height?.toFloat() ?: 1920f
-                    val res = GeminiVisionAnalyzer.analyzeCarromBoardFrame(null, width, height)
-                    res.onSuccess {
-                        aimOverlayCanvasView?.aiStatusText = "AI 2.5: ${it.targetPocket} (${it.shotAngleDegrees.toInt()}°)"
-                        aimOverlayCanvasView?.invalidate()
+                delay(2200)
+                if (isAutoPlayActive && aimOverlayCanvasView != null && !isOpponentTurnActive) {
+                    val overlay = aimOverlayCanvasView ?: continue
+                    val w = overlay.width.toFloat().takeIf { it > 0 } ?: 1080f
+                    val h = overlay.height.toFloat().takeIf { it > 0 } ?: 1920f
+
+                    val trajectory = AimEngine.calculateTrajectory(
+                        striker = overlay.strikerPos,
+                        coin = overlay.coinPos,
+                        boardWidth = w,
+                        boardHeight = h,
+                        config = currentConfig
+                    )
+
+                    // Auto-execute if locked and guaranteed winning trajectory
+                    if (trajectory.isGuaranteedWin && CarromAutoPlayService.isAccessibilitySettingsOn(this@FloatingAimService)) {
+                        CarromAutoPlayService.executeAutoShot(
+                            strikerPos = trajectory.strikerPos,
+                            aimTargetPos = trajectory.ghostStrikerPos,
+                            powerPercent = trajectory.recommendedPower
+                        )
+                        delay(2200) // Cooldown between automatic shots
                     }
                 }
             }
@@ -416,7 +871,20 @@ class FloatingAimService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isServiceRunning.value = false
-        autoScanJob?.cancel()
+        autoPlayJob?.cancel()
+        autoPlayJob = null
+
+        // Stop all background coroutine calculations and watchers
+        try {
+            serviceScope.coroutineContext.cancelChildren()
+        } catch (_: Exception) {}
+
+        // Cancel any pending animations and timers
+        snapAnimator?.cancel()
+        snapAnimator = null
+        idleHandler.removeCallbacksAndMessages(null)
+
+        // Clean up WindowManager views safely
         if (floatingBubbleView != null) {
             try {
                 windowManager.removeView(floatingBubbleView)

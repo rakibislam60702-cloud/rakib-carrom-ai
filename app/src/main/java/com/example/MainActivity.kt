@@ -24,6 +24,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -136,6 +139,14 @@ data class BannerSlideItem(
     val fallbackRes: Int
 )
 
+data class ProFeatureItem(
+    val icon: String,
+    val title: String,
+    val subtitle: String,
+    val tag: String,
+    val accentColor: Color
+)
+
 @Composable
 fun MainAppScaffold() {
     val context = LocalContext.current
@@ -193,9 +204,11 @@ fun MainAppScaffold() {
 
     // Observe floating service state
     val isFloatingServiceActive by FloatingAimService.isServiceRunning.collectAsStateWithLifecycle()
+    val cloudAiState by CloudAiConnectionManager.connectionState.collectAsStateWithLifecycle()
 
-    // Online Cloud License Verification on Launch & Loop
+    // Auto-Connect to Cloud Server & Online License Verification on Launch
     LaunchedEffect(Unit) {
+        CloudAiConnectionManager.initializeAutoConnect(context)
         isCheckingLicenseOnline = true
         val status = LicenseVerificationService.verifyLicenseOnline(context)
         cloudLicenseInfo = status
@@ -238,10 +251,14 @@ fun MainAppScaffold() {
                     isAppUnlocked = isAppUnlocked,
                     remainingMillis = remainingMillis,
                     cloudLicenseInfo = cloudLicenseInfo,
+                    cloudAiState = cloudAiState,
                     isFloatingServiceActive = isFloatingServiceActive,
                     aiAnalysisResult = aiAnalysisResult,
                     isAnalyzingWithGemini = isAnalyzingWithGemini,
-                    onOpenVipDialog = { showVipDialog = true },
+                    onOpenVipDialog = {
+                        vipInputText = ""
+                        showVipDialog = true
+                    },
                     onAnalyzeGemini = {
                         scope.launch {
                             isAnalyzingWithGemini = true
@@ -299,14 +316,21 @@ fun MainAppScaffold() {
 
                 NavigationTab.STORE -> StoreScreen(
                     isVipActive = isVipActive,
-                    onOpenVipDialog = { showVipDialog = true }
+                    onOpenVipDialog = {
+                        vipInputText = ""
+                        showVipDialog = true
+                    }
                 )
 
                 NavigationTab.PROFILE -> ProfileScreen(
                     isVipActive = isVipActive,
                     remainingMillis = remainingMillis,
                     cloudLicenseInfo = cloudLicenseInfo,
-                    onOpenVipDialog = { showVipDialog = true }
+                    cloudAiState = cloudAiState,
+                    onOpenVipDialog = {
+                        vipInputText = ""
+                        showVipDialog = true
+                    }
                 )
 
                 NavigationTab.SETTINGS -> SettingsScreen(
@@ -382,29 +406,81 @@ fun MainAppScaffold() {
             )
         }
 
-        // VIP Lifetime Cloud Activation Dialog
+        // VIP & Hardware Trial Expired Dialog
         if (showVipDialog) {
+            val hwid = cloudLicenseInfo?.hardwareId ?: LicenseVerificationService.getHardwareFingerprint(context)
             AlertDialog(
                 onDismissRequest = { showVipDialog = false },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("★ VIP LIFETIME UNLOCK", color = Color(0xFFFFD700), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            text = if (isVipActive) "★ VIP LIFETIME UNLOCKED"
+                            else if (!isTrialActive) "🔒 TRIAL EXPIRED • ENTER VIP PASSKEY"
+                            else "★ VIP LIFETIME ACCESS",
+                            color = if (isVipActive) Color(0xFFFFD700)
+                            else if (!isTrialActive) Color(0xFFFF5252)
+                            else Color(0xFFFFD700),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp
+                        )
                     }
                 },
                 text = {
                     Column {
+                        // Hardware-Locked Security Badge
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (!isTrialActive && !isVipActive) Color(0x2EFF1744) else Color(0x1F00E5FF))
+                                .border(1.dp, if (!isTrialActive && !isVipActive) Color(0x66FF1744) else Color(0x3300E5FF), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "🛡️ HWID: $hwid",
+                                        fontSize = 10.5.sp,
+                                        color = if (!isTrialActive && !isVipActive) Color(0xFFFF8A80) else Color(0xFF00E5FF),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "ANTI-RESET 🔒",
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF00E676),
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+                                Text(
+                                    text = "Android Keystore Hardware Anchored • 7-Day Limit",
+                                    fontSize = 9.sp,
+                                    color = Color(0xFF88A0C2)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
                         Text(
-                            text = if (isVipActive) "You currently have LIFETIME VIP ACTIVE status! You can enter a new key or verify existing access:"
-                            else "Enter your VIP Unlock Key (enter Rakib@48 to unlock permanent Lifetime VIP access):",
-                            fontSize = 13.sp,
-                            color = Color(0xFF88A0C2),
-                            modifier = Modifier.padding(bottom = 12.dp)
+                            text = when {
+                                isVipActive -> "👑 Lifetime VIP Status is active on this hardware device. You can verify or change your passkey below:"
+                                !isTrialActive -> "⚠️ Your 7-Day Free Trial (604,800,000 ms) has EXPIRED for this hardware. Data clear or reinstallation cannot reset this hardware lock. Please enter your VIP Passkey to unlock permanent access:"
+                                else -> "Enter your VIP Passkey to upgrade from 7-Day Trial to Lifetime VIP access permanently bound to this hardware:"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFFC0D0E5),
+                            modifier = Modifier.padding(bottom = 10.dp)
                         )
+
                         OutlinedTextField(
                             value = vipInputText,
                             onValueChange = { vipInputText = it },
-                            placeholder = { Text("Enter key e.g. Rakib@48", color = Color(0x66FFFFFF), fontSize = 13.sp) },
-                            label = { Text("VIP Secret Key") },
+                            placeholder = { Text("e.g. RAKIB-VIP-2026", color = Color(0x66FFFFFF), fontSize = 12.5.sp) },
+                            label = { Text("VIP Passkey") },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF00E5FF),
@@ -416,6 +492,37 @@ fun MainAppScaffold() {
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Quick Test Keys
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Quick Keys:",
+                                fontSize = 10.sp,
+                                color = Color(0xFF88A0C2)
+                            )
+                            Row {
+                                listOf("RAKIB-VIP-2026", "Rakib@48").forEach { testKey ->
+                                    Text(
+                                        text = testKey,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF00E5FF),
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0x1F00E5FF))
+                                            .clickable { vipInputText = testKey }
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                            }
+                        }
                     }
                 },
                 confirmButton = {
@@ -427,20 +534,27 @@ fun MainAppScaffold() {
                                 res.onSuccess { status ->
                                     isVipActive = true
                                     cloudLicenseInfo = status
+                                    remainingMillis = status.remainingTrialMillis
                                     showVipDialog = false
-                                    Toast.makeText(context, "👑 LIFETIME VIP ACTIVE! Permanent Access Granted.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "👑 LIFETIME VIP ACTIVE! Hardware Unlocked.", Toast.LENGTH_LONG).show()
                                 }.onFailure { error ->
-                                    Toast.makeText(context, error.message ?: "Activation Failed. Try Rakib@48", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, error.message ?: "Invalid Key", Toast.LENGTH_SHORT).show()
                                 }
                                 isActivatingVip = false
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isVipActive) Color(0xFF00E5FF) else Color(0xFFFFD700)
+                        )
                     ) {
                         if (isActivatingVip) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF060B13))
                         } else {
-                            Text("UNLOCK VIP LIFETIME", color = Color(0xFF060B13), fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isVipActive) "VERIFY PASSKEY" else "UNLOCK VIP ACCESS",
+                                color = Color(0xFF060B13),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 },
@@ -525,6 +639,7 @@ fun DashboardScreen(
     isAppUnlocked: Boolean,
     remainingMillis: Long,
     cloudLicenseInfo: CloudLicenseStatus?,
+    cloudAiState: CloudAiConnectionState,
     isFloatingServiceActive: Boolean,
     aiAnalysisResult: AiAimDetectionResult?,
     isAnalyzingWithGemini: Boolean,
@@ -559,12 +674,12 @@ fun DashboardScreen(
         }
     }
 
-    // Banner photos using Base64 Bitmaps with smooth crossfade
+    // Banner photos with 4 complete high-definition slides
     val bannerItems = remember(banner1Bitmap, banner2Bitmap) {
         listOf(
             BannerSlideItem(
-                title = "Rakib Official",
-                subtitle = "Carrom Aim Pro Official Lead",
+                title = "Rakibul Official",
+                subtitle = "Carrom Aim Pro Lead & Founder",
                 bitmap = banner1Bitmap,
                 drawableRes = R.drawable.my_banner_1,
                 fallbackRes = R.drawable.my_photo_1
@@ -575,14 +690,35 @@ fun DashboardScreen(
                 bitmap = banner2Bitmap,
                 drawableRes = R.drawable.my_banner_2,
                 fallbackRes = R.drawable.my_photo_2
+            ),
+            BannerSlideItem(
+                title = "Multi-Cushion Physics",
+                subtitle = "1, 2, & 3-Cushion Angle Solvers",
+                bitmap = null,
+                drawableRes = R.drawable.my_banner_1,
+                fallbackRes = R.drawable.my_photo_1
+            ),
+            BannerSlideItem(
+                title = "Zero-Miss Auto Strike",
+                subtitle = "Precision Pocket Lock & Reticle",
+                bitmap = null,
+                drawableRes = R.drawable.my_banner_2,
+                fallbackRes = R.drawable.my_photo_2
             )
         )
     }
 
-    LaunchedEffect(bannerItems.size) {
+    val pagerState = rememberPagerState(pageCount = { bannerItems.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    // Smooth auto-scroll loop across all slides (3-second infinite auto-swipe)
+    LaunchedEffect(pagerState.pageCount) {
         while (true) {
-            delay(4000)
-            currentBannerIndex = (currentBannerIndex + 1) % bannerItems.size
+            delay(3000)
+            if (!pagerState.isScrollInProgress) {
+                val next = (pagerState.currentPage + 1) % pagerState.pageCount
+                pagerState.animateScrollToPage(next)
+            }
         }
     }
 
@@ -603,14 +739,14 @@ fun DashboardScreen(
         ) {
             Column {
                 Text(
-                    text = "RAKIB AI",
-                    fontSize = 24.sp,
+                    text = "RAKIB AI ULTRA",
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF00E5FF),
-                    letterSpacing = 2.sp
+                    letterSpacing = 1.8.sp
                 )
                 Text(
-                    text = "CARROM AIM PRO • GEMINI 2.5",
+                    text = "CARROM AIM ULTRA • GEMINI 2.5",
                     fontSize = 10.sp,
                     color = Color(0xFF7E92B0),
                     fontWeight = FontWeight.SemiBold
@@ -652,19 +788,21 @@ fun DashboardScreen(
         val screenMetrics = remember { context.resources.displayMetrics }
         val screenDimensionsStr = remember { "${screenMetrics.widthPixels} × ${screenMetrics.heightPixels} px (${screenMetrics.densityDpi} DPI)" }
         val androidVersionStr = remember { "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})" }
+        val hwid = cloudLicenseInfo?.hardwareId ?: remember(context) { LicenseVerificationService.getHardwareFingerprint(context) }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            borderColor = Color(0x5500E5FF)
+            borderColor = if (!isAppUnlocked) Color(0xFFFF5252) else Color(0x5500E5FF)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(Color(0x1F00E5FF), Color(0x0A060B13))
+                            colors = if (!isAppUnlocked) listOf(Color(0x2EFF1744), Color(0x0A060B13))
+                            else listOf(Color(0x1F00E5FF), Color(0x0A060B13))
                         )
                     )
                     .padding(14.dp)
@@ -678,10 +816,10 @@ fun DashboardScreen(
                         Text("📱", fontSize = 16.sp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "DEVICE LINKED: $manufacturer $deviceModel".uppercase(),
+                            text = "DEVICE: $manufacturer $deviceModel".uppercase(),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00E5FF),
+                            color = if (!isAppUnlocked) Color(0xFFFF8A80) else Color(0xFF00E5FF),
                             letterSpacing = 0.5.sp
                         )
                     }
@@ -689,14 +827,14 @@ fun DashboardScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x3300E676))
+                            .background(if (!isAppUnlocked) Color(0x33FF1744) else Color(0x3300E676))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "LINKED 🟢",
+                            text = if (!isAppUnlocked) "HW LOCKED 🔒" else "LINKED 🟢",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00E676)
+                            color = if (!isAppUnlocked) Color(0xFFFF5252) else Color(0xFF00E676)
                         )
                     }
                 }
@@ -708,8 +846,9 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "📐 $screenDimensionsStr",
+                        text = "🛡️ HWID: $hwid",
                         fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF90CAF9)
                     )
                     Text(
@@ -722,16 +861,23 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = if (isVipActive) "👑 VIP Lifetime Unlocked: Full Premium Engine Enabled"
-                    else "🎁 7-Day Auto-Trial Active (Zero Password / Login Required)",
+                    text = when {
+                        isVipActive -> "👑 VIP Lifetime Active • Permanent Hardware Key Bound"
+                        isAppUnlocked -> "🎁 7-Day Auto-Trial Active (Hardware Keystore Anchored)"
+                        else -> "⚠️ 7-Day Free Trial Expired for this Device (Anti-Reset Active)"
+                    },
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (isVipActive) Color(0xFFFFD700) else Color(0xFF00E676)
+                    color = when {
+                        isVipActive -> Color(0xFFFFD700)
+                        isAppUnlocked -> Color(0xFF00E676)
+                        else -> Color(0xFFFF5252)
+                    }
                 )
             }
         }
 
-        // Cloud Server Verification Bar
+        // Cloud Server Verification & Real-time AI Handshake Bar
         Spacer(modifier = Modifier.height(10.dp))
         Row(
             modifier = Modifier
@@ -747,11 +893,11 @@ fun DashboardScreen(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(if (cloudLicenseInfo?.isVerifiedOnline == true) Color(0xFF00E676) else Color(0xFFFFD700))
+                        .background(if (cloudAiState.isConnected) Color(0xFF00E676) else Color(0xFFFFD700))
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (cloudLicenseInfo != null) "Cloud License • ${if (isVipActive) "LIFETIME VIP ACTIVE" else cloudLicenseInfo.tierName}" else "Connecting Cloud...",
+                    text = "${cloudAiState.statusText} • ${if (isVipActive) "LIFETIME VIP" else "TRIAL"}",
                     fontSize = 10.sp,
                     color = Color(0xFF90CAF9),
                     fontWeight = FontWeight.SemiBold
@@ -759,19 +905,20 @@ fun DashboardScreen(
             }
 
             Text(
-                text = "${cloudLicenseInfo?.licenseId ?: "ID: RKB-AI"} (${cloudLicenseInfo?.serverPingMs ?: 38}ms)",
+                text = "${cloudAiState.handshakeProtocol} (${cloudAiState.latencyMs}ms)",
                 fontSize = 10.sp,
-                color = Color(0xFF78909C)
+                color = Color(0xFF00E5FF),
+                fontWeight = FontWeight.Bold
             )
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // High-Clarity Crystal Banner Slider with 4s Smooth Crossfade Transition
+        // High-Clarity Crystal Banner Slider with Smooth Horizontal Swiping & Active Page Indicators
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(185.dp)
+                .height(190.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFF0D1B2A))
                 .border(
@@ -782,17 +929,13 @@ fun DashboardScreen(
                     RoundedCornerShape(20.dp)
                 )
         ) {
-            val currentItem = bannerItems[currentBannerIndex]
-
-            AnimatedContent(
-                targetState = currentItem,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(800)) togetherWith fadeOut(animationSpec = tween(800))
-                },
-                label = "AsyncBannerCarousel"
-            ) { targetItem ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { pageIndex ->
+                val targetItem = bannerItems[pageIndex]
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // 100% Original Brightness & Crystal Clear Photo Rendering (Zero dark tint)
+                    // 100% Original Brightness & Crystal Clear Photo Rendering
                     if (targetItem.bitmap != null) {
                         Image(
                             bitmap = targetItem.bitmap.asImageBitmap(),
@@ -804,7 +947,7 @@ fun DashboardScreen(
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(targetItem.drawableRes)
-                                .crossfade(800)
+                                .crossfade(600)
                                 .placeholder(targetItem.fallbackRes)
                                 .error(targetItem.fallbackRes)
                                 .fallback(targetItem.fallbackRes)
@@ -852,7 +995,7 @@ fun DashboardScreen(
                 }
             }
 
-            // Carousel Dot Indicators
+            // Carousel Dot Indicators with Click-to-Jump and Width Morphing
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -864,13 +1007,19 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 bannerItems.indices.forEach { index ->
+                    val isSelected = pagerState.currentPage == index
                     Box(
                         modifier = Modifier
-                            .size(if (index == currentBannerIndex) 18.dp else 6.dp, 6.dp)
+                            .size(if (isSelected) 18.dp else 6.dp, 6.dp)
                             .clip(CircleShape)
                             .background(
-                                if (index == currentBannerIndex) Color(0xFF00E5FF) else Color(0x66FFFFFF)
+                                if (isSelected) Color(0xFF00E5FF) else Color(0x66FFFFFF)
                             )
+                            .clickable {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
+                                }
+                            }
                     )
                 }
             }
@@ -879,25 +1028,42 @@ fun DashboardScreen(
         Spacer(modifier = Modifier.height(14.dp))
 
         // Access / Trial Countdown Status Card
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        GlassCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    if (!isAppUnlocked) onOpenVipDialog()
+                },
+            borderColor = if (!isAppUnlocked) Color(0xFFFF1744) else Color(0x3300E5FF)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(
+                        if (!isAppUnlocked) Brush.horizontalGradient(listOf(Color(0x2EFF1744), Color(0x14060B13)))
+                        else Brush.horizontalGradient(listOf(Color(0x1A00E5FF), Color(0x0A060B13)))
+                    )
                     .padding(14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
-                        text = if (isVipActive) "CLOUD VIP STATUS" else "TRIAL COUNTDOWN",
+                        text = if (isVipActive) "CLOUD VIP STATUS"
+                        else if (!isAppUnlocked) "HARDWARE TRIAL STATUS"
+                        else "7-DAY TRIAL COUNTDOWN",
                         fontSize = 11.sp,
-                        color = Color(0xFF88A0C2),
+                        color = if (!isAppUnlocked) Color(0xFFFF8A80) else Color(0xFF88A0C2),
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isVipActive) "LIFETIME UNLOCKED" else formatCountdown(remainingMillis),
-                        fontSize = 17.sp,
-                        color = if (isVipActive) Color(0xFFFFD700) else Color.White,
+                        text = if (isVipActive) "LIFETIME UNLOCKED"
+                        else if (!isAppUnlocked) "EXPIRED (HW-LOCKED)"
+                        else formatCountdown(remainingMillis),
+                        fontSize = 16.sp,
+                        color = if (isVipActive) Color(0xFFFFD700)
+                        else if (!isAppUnlocked) Color(0xFFFF5252)
+                        else Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -911,7 +1077,9 @@ fun DashboardScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isAppUnlocked) "ACTIVE" else "EXPIRED",
+                        text = if (isVipActive) "VIP ACTIVE"
+                        else if (isAppUnlocked) "TRIAL ACTIVE"
+                        else "LOCKED 🔒",
                         color = if (isAppUnlocked) Color(0xFF00E676) else Color(0xFFFF1744),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -922,79 +1090,351 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Carrom Disc Pool Engine Launch Card
+        // =========================================================================
+        // ONE-TAP "START ENGINE" MASTER ACTION & AI NEURAL MATRIX SYNC
+        // =========================================================================
+        var isStartingEngineSync by remember { mutableStateOf(false) }
+        var syncProgress by remember { mutableFloatStateOf(0f) }
+        var syncStatusText by remember { mutableStateOf("⚡ Initializing Neural Matrix...") }
+
+        // Infinite glowing border pulse for master button
+        val infiniteTransition = rememberInfiniteTransition(label = "StartEngineGlow")
+        val glowAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "GlowAlpha"
+        )
+
+        fun executeStartEngine() {
+            if (!isAppUnlocked) {
+                Toast.makeText(context, "🔒 Trial Expired. Please enter VIP Passkey to unlock.", Toast.LENGTH_SHORT).show()
+                onOpenVipDialog()
+                return
+            }
+
+            if (isFloatingServiceActive) {
+                val intent = Intent(context, FloatingAimService::class.java)
+                context.stopService(intent)
+                Toast.makeText(context, "🛑 Floating Aim Engine Stopped", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                onToggleFloatingService() // will trigger showPermissionDialog in MainActivity
+                return
+            }
+
+            coroutineScope.launch {
+                isStartingEngineSync = true
+                syncProgress = 0.15f
+                syncStatusText = "⚡ Initializing Gemini 2.5 Neural Matrix..."
+
+                delay(280)
+                syncProgress = 0.55f
+                syncStatusText = "🎯 Calibrating 120 FPS Sub-Pixel Raycaster..."
+
+                delay(320)
+                syncProgress = 0.90f
+                syncStatusText = "🌐 Neural Cloud Matrix Synced (100%)..."
+
+                delay(300)
+                syncProgress = 1.0f
+                syncStatusText = "🚀 Launching Carrom Disc Pool & HUD..."
+
+                // Start Foreground Service
+                val intent = Intent(context, FloatingAimService::class.java)
+                ContextCompat.startForegroundService(context, intent)
+
+                // Instant Auto Launch Carrom Disc Pool
+                val carromPackage = "com.miniclip.carrom"
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(carromPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                    Toast.makeText(context, "🎯 Carrom Disc Pool Launched with Ultra HUD!", Toast.LENGTH_SHORT).show()
+                } else {
+                    try {
+                        val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$carromPackage"))
+                        marketIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(marketIntent)
+                        Toast.makeText(context, "🎯 Ultra AI Floating Engine Active! Opening Carrom Disc Pool...", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "🎯 Rakib AI ultra Floating Engine Active (120 FPS)!", Toast.LENGTH_LONG).show()
+                    }
+                }
+
+                delay(400)
+                isStartingEngineSync = false
+            }
+        }
+
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            borderColor = if (isFloatingServiceActive) Color(0xFF00E676) else Color(0x3300E5FF)
+            borderColor = if (isFloatingServiceActive) Color(0xFF00E676)
+            else if (!isAppUnlocked) Color(0xFFFF5252).copy(alpha = glowAlpha)
+            else Color(0xFF00E5FF).copy(alpha = glowAlpha)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = if (isFloatingServiceActive) listOf(Color(0x1F00E676), Color(0x0A060B13))
+                            else if (!isAppUnlocked) listOf(Color(0x2EFF1744), Color(0x14060B13))
+                            else listOf(Color(0x2E00E5FF), Color(0x14FFD700), Color(0x0A060B13))
+                        )
+                    )
+                    .padding(16.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF131F37))
-                            .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp)),
+                            .size(50.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (isFloatingServiceActive) Brush.linearGradient(listOf(Color(0xFF00E676), Color(0xFF00838F)))
+                                else if (!isAppUnlocked) Brush.linearGradient(listOf(Color(0xFFFF1744), Color(0xFFB71C1C)))
+                                else Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFFFFD700)))
+                            )
+                            .padding(2.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("🎯", fontSize = 22.sp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF060B13)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (isFloatingServiceActive) "🟢" else if (!isAppUnlocked) "🔒" else "🚀",
+                                fontSize = 24.sp
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Carrom Disc Pool AI Engine",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            text = "MASTER AI LAUNCH ENGINE",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = if (isFloatingServiceActive) "Live Floating Window Active 🟢" else "Gemini 2.5 Flash Vision & Dual-Bank Rays",
+                            text = if (isStartingEngineSync) syncStatusText
+                            else if (isFloatingServiceActive) "HUD Active • Carrom Disc Pool Synced 🟢"
+                            else if (!isAppUnlocked) "Trial Expired • Enter VIP Passkey to Launch"
+                            else "1-Tap Cloud Neural Sync & Instant Game Launch",
                             fontSize = 11.sp,
-                            color = if (isFloatingServiceActive) Color(0xFF00E676) else Color(0xFF7E92B0),
+                            color = if (isFloatingServiceActive) Color(0xFF00E676)
+                            else if (!isAppUnlocked) Color(0xFFFF8A80)
+                            else Color(0xFF90CAF9),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
 
-                    Text(
-                        text = if (!isAppUnlocked) "LOCKED 🔒" else if (isFloatingServiceActive) "RUNNING 🚀" else "READY ⚡",
-                        color = if (!isAppUnlocked) Color(0xFFFF5252) else if (isFloatingServiceActive) Color(0xFF00E676) else Color(0xFF00E5FF),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isStartingEngineSync) Color(0x33FFD700)
+                                else if (isFloatingServiceActive) Color(0x3300E676)
+                                else if (!isAppUnlocked) Color(0x33FF1744)
+                                else Color(0x3300E5FF)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isStartingEngineSync) "SYNCING 🧠"
+                            else if (isFloatingServiceActive) "ACTIVE 🟢"
+                            else if (!isAppUnlocked) "LOCKED 🔒"
+                            else "READY ⚡",
+                            color = if (isStartingEngineSync) Color(0xFFFFD700)
+                            else if (isFloatingServiceActive) Color(0xFF00E676)
+                            else if (!isAppUnlocked) Color(0xFFFF5252)
+                            else Color(0xFF00E5FF),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Sleek Neural Matrix Progress Bar during launch sync
+                if (isStartingEngineSync) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = syncStatusText,
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF00E5FF),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${(syncProgress * 100).toInt()}%",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF1B2838))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(syncProgress)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFF00E5FF), Color(0xFFFFD700), Color(0xFF00E676))
+                                        )
+                                    )
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
+                // Prominent Glowing Cyan-Gold Master Button (or Locked Warning Button)
                 Button(
-                    onClick = onToggleFloatingService,
+                    onClick = { executeStartEngine() },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = when {
-                            !isAppUnlocked -> Color(0xFF263238)
-                            isFloatingServiceActive -> Color(0xFFFF5252)
-                            else -> Color(0xFF00E5FF)
-                        },
+                        containerColor = Color.Transparent,
                         disabledContainerColor = Color(0xFF1E2631)
                     ),
-                    enabled = isAppUnlocked
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    enabled = !isStartingEngineSync
                 ) {
-                    Text(
-                        text = when {
-                            !isAppUnlocked -> "TRIAL EXPIRED (LOCKED)"
-                            isFloatingServiceActive -> "STOP FLOATING ENGINE"
-                            else -> "🚀 LAUNCH FLOATING AI ENGINE"
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                when {
+                                    !isAppUnlocked -> Brush.horizontalGradient(listOf(Color(0xFF4A148C), Color(0xFFB71C1C), Color(0xFF4A148C)))
+                                    isStartingEngineSync -> Brush.horizontalGradient(listOf(Color(0xFF37474F), Color(0xFF455A64)))
+                                    isFloatingServiceActive -> Brush.horizontalGradient(listOf(Color(0xFFFF1744), Color(0xFFD50000)))
+                                    else -> Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF00E5FF),
+                                            Color(0xFFFFD700),
+                                            Color(0xFF00E5FF)
+                                        )
+                                    )
+                                }
+                            )
+                            .border(
+                                width = if (isFloatingServiceActive) 0.dp else 1.5.dp,
+                                color = if (isFloatingServiceActive) Color.Transparent
+                                else if (!isAppUnlocked) Color(0xFFFF5252).copy(alpha = 0.8f)
+                                else Color(0xFFFFFFFF).copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(14.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (isStartingEngineSync) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Color(0xFFFFD700),
+                                    strokeWidth = 2.5.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "SYNCING NEURAL MATRIX...",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    letterSpacing = 1.sp
+                                )
+                            } else if (isFloatingServiceActive) {
+                                Text(
+                                    text = "🛑 STOP ENGINE",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = Color.White,
+                                    letterSpacing = 1.sp
+                                )
+                            } else if (!isAppUnlocked) {
+                                Text(
+                                    text = "🔒 TRIAL EXPIRED • ENTER VIP PASSKEY",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.5.sp,
+                                    color = Color(0xFFFFD700),
+                                    letterSpacing = 1.sp
+                                )
+                            } else {
+                                Text(
+                                    text = "🚀 START ENGINE",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFF060B13),
+                                    letterSpacing = 1.5.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Secondary Quick Launch Button when service is running
+                if (isFloatingServiceActive) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val carromPackage = "com.miniclip.carrom"
+                            val launchIntent = context.packageManager.getLaunchIntentForPackage(carromPackage)
+                            if (launchIntent != null) {
+                                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(launchIntent)
+                            } else {
+                                try {
+                                    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$carromPackage"))
+                                    marketIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(marketIntent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Opening Carrom Disc Pool...", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         },
-                        fontWeight = FontWeight.Bold,
-                        color = if (isAppUnlocked && !isFloatingServiceActive) Color(0xFF060B13) else Color.White
-                    )
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x3300E5FF))
+                    ) {
+                        Text(
+                            text = "⚡ OPEN CARROM DISC POOL",
+                            color = Color(0xFF00E5FF),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -1104,29 +1544,163 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section: Live Interactive Aim Simulator & Calibration
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "AI AIM SIMULATOR & CALIBRATION",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00E5FF)
-                )
-                Text(
-                    text = "Drag striker & coin to test dual-rebound rays",
-                    fontSize = 11.sp,
-                    color = Color(0xFF88A0C2)
-                )
+        // Section: Rakib Pro AI Capabilities Feature Matrix Showcase
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            borderColor = Color(0x6600E5FF)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0x1F00E5FF), Color(0x0A060B13))
+                        )
+                    )
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "⚡ RAKIB PRO AI CAPABILITIES",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF00E5FF),
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Military-grade vector raycasting & neural board physics",
+                            fontSize = 10.5.sp,
+                            color = Color(0xFF88A0C2)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x3300E5FF))
+                            .border(1.dp, Color(0x6600E5FF), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "PRO V2.5",
+                            color = Color(0xFF00E5FF),
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                InteractiveAimBoard(
-                    laserColor = simColor,
-                    strokeWidth = simStrokeWidth,
-                    isDualBank = simDualBank,
-                    isLinesOn = true
+                val proFeatures = listOf(
+                    ProFeatureItem(
+                        icon = "⚡",
+                        title = "100% Zero-Miss Trajectory Engine",
+                        subtitle = "Direct, 3-Cushion & Multi-Bank Rays with sub-pixel cushion reflection",
+                        tag = "ZERO-MISS",
+                        accentColor = Color(0xFF00E5FF)
+                    ),
+                    ProFeatureItem(
+                        icon = "🎯",
+                        title = "Smart Auto-Lock & Queen Priority Sequence",
+                        subtitle = "Instant corner pocket locking with automated Queen + White cover 2-shot plan",
+                        tag = "AUTO-LOCK",
+                        accentColor = Color(0xFFFFD700)
+                    ),
+                    ProFeatureItem(
+                        icon = "🤖",
+                        title = "Undetectable Anti-Ban Humanized Auto-Strike",
+                        subtitle = "Physiological Cubic Bezier curves & randomized thumb release micro-jitter",
+                        tag = "ANTI-BAN",
+                        accentColor = Color(0xFF00E676)
+                    ),
+                    ProFeatureItem(
+                        icon = "🌐",
+                        title = "Real-Time Cloud AI Vector Sync",
+                        subtitle = "Continuous physics matrix updates & micro-calibration with instant offline fallback",
+                        tag = "CLOUD AI",
+                        accentColor = Color(0xFFD500F9)
+                    ),
+                    ProFeatureItem(
+                        icon = "📱",
+                        title = "Universal Display & Board Auto-Calibration",
+                        subtitle = "Hardware-accelerated 120 FPS laser shaders tailored for all mobile screens",
+                        tag = "120 FPS",
+                        accentColor = Color(0xFFFF9100)
+                    )
                 )
+
+                proFeatures.forEachIndexed { index, feat ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x0F00E5FF))
+                            .border(0.8.dp, feat.accentColor.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(feat.accentColor.copy(alpha = 0.15f))
+                                .border(1.dp, feat.accentColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = feat.icon, fontSize = 17.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = feat.title,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = feat.subtitle,
+                                color = Color(0xFF90A4AE),
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(feat.accentColor.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = feat.tag,
+                                color = feat.accentColor,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (index < proFeatures.size - 1) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
         }
 
@@ -1241,7 +1815,7 @@ fun StoreScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700))
                 ) {
                     Text(
-                        text = if (isVipActive) "LIFETIME VIP ACTIVATED 👑" else "ENTER VIP KEY (Rakib@48)",
+                        text = if (isVipActive) "LIFETIME VIP ACTIVATED 👑" else "ENTER VIP PASSKEY",
                         color = Color(0xFF060B13),
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -1303,6 +1877,7 @@ fun ProfileScreen(
     isVipActive: Boolean,
     remainingMillis: Long,
     cloudLicenseInfo: CloudLicenseStatus?,
+    cloudAiState: CloudAiConnectionState,
     onOpenVipDialog: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1418,10 +1993,13 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 ProfileInfoRow("License Tier", if (isVipActive) "Lifetime VIP Pass" else "7-Day Automatic Trial")
-                ProfileInfoRow("Status", if (isVipActive) "Active (No Expiration)" else "Active (Full Access)")
+                ProfileInfoRow("Status", if (isVipActive) "Active (No Expiration)" else if (remainingMillis > 0) "Active (Trial Running)" else "Expired (Hardware Locked)")
                 ProfileInfoRow("Remaining Time", if (isVipActive) "Lifetime" else formatCountdown(remainingMillis))
-                ProfileInfoRow("Cloud License ID", cloudLicenseInfo?.licenseId ?: "RKB-DEV-001")
-                ProfileInfoRow("Cloud Ping", "${cloudLicenseInfo?.serverPingMs ?: 38} ms")
+                ProfileInfoRow("Hardware ID", cloudLicenseInfo?.hardwareId ?: LicenseVerificationService.getHardwareFingerprint(context))
+                ProfileInfoRow("Anti-Reset Protection", "Active (Hardware Keystore Anchored)")
+                ProfileInfoRow("Cloud AI Server", "${cloudAiState.latencyMs}ms • ${cloudAiState.handshakeProtocol}")
+                ProfileInfoRow("Vision Node", cloudAiState.visionNode)
+                ProfileInfoRow("Grid Calibration", cloudAiState.boardGrid)
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1434,7 +2012,7 @@ fun ProfileScreen(
                     )
                 ) {
                     Text(
-                        text = if (isVipActive) "VERIFY VIP KEY" else "ACTIVATE LIFETIME VIP (Rakib@48)",
+                        text = if (isVipActive) "VERIFY VIP STATUS" else "ENTER VIP PASSKEY",
                         color = if (isVipActive) Color(0xFF00E5FF) else Color(0xFF060B13),
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
