@@ -1,4 +1,4 @@
- name: Build Rakib AI Aim APK
+name: Build Rakib AI Aim APK
 
 on:
   push:
