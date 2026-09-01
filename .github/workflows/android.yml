@@ -26,9 +26,14 @@ jobs:
 
     - name: Generate Wrapper & Build APK
       run: |
+        # ডিফল্ট অ্যান্ড্রয়েড ডিবাগ কি তৈরি করা (যদি না থাকে)
+        keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        mkdir -p /home/runner/.android/
+        cp debug.keystore /home/runner/.android/debug.keystore
+        
         gradle wrapper --gradle-version 9.3.1
         chmod +x gradlew
-        ./gradlew assembleDebug --no-daemon --stacktrace
+        ./gradlew assembleDebug -x validateSigningDebug --no-daemon --stacktrace
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
