@@ -30,7 +30,9 @@ jobs:
           chmod +x gradlew
           echo "android.overrideVersionCheck=true" >> gradle.properties
           echo "android.overridePathCheck=true" >> gradle.properties
-          ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" >> gradle.properties
+          echo "ksp.incremental=false" >> gradle.properties
+          ./gradlew assembleDebug --stacktrace -x test -x lint
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
